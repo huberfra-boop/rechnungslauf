@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Rechnungslauf Cycle Village</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Nunito:wght@900&display=swap" rel="stylesheet">
+<style>
+  :root { --black:#000; --white:#fff; --text:#212529; --grey:#919aa1; --light:#f6f6f6; --line:#e4e4e4; --pink:#f5426f; --green:#1a9e55; --amber:#f5a623; }
+  * { box-sizing:border-box; }
+  html, body { overflow-x:hidden; }
+  body { margin:0; background:var(--light); color:var(--text); font-family:Jost,system-ui,sans-serif; font-weight:400; }
+  h1,h2,h3 { font-family:Nunito,sans-serif; font-weight:900; text-transform:uppercase; letter-spacing:.03em; margin:0; line-height:1.2; }
+  header { background:var(--black); } .bar { max-width:1200px; margin:0 auto; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .bar img { width:150px; display:block; } .bar .who { text-align:right; color:#cfcfcf; font-size:.85rem; } .bar .who b { display:block; color:var(--white); font:900 1rem Nunito,sans-serif; letter-spacing:.06em; text-transform:uppercase; }
+  .bar .who a { color:#cfcfcf; cursor:pointer; text-decoration:underline; margin-left:10px; }
+  main { max-width:1200px; margin:0 auto; padding:18px 16px 60px; }
+  small { color:var(--grey); font-weight:400; }
+  button { font:inherit; }
+  .btn { all:unset; cursor:pointer; background:var(--black); color:var(--white); font:500 .75rem Jost,sans-serif; letter-spacing:1px; text-transform:uppercase; padding:11px 22px; }
+  .btn:hover { background:#656565; }
+
+  .test { background:var(--amber); color:#000; font-weight:600; padding:8px 16px; text-align:center; font-size:.9rem; }
+  .login, .msg { background:var(--white); border-top:6px solid var(--black); max-width:520px; margin:40px auto; padding:28px 24px; text-align:center; }
+  .login p, .msg p { margin:12px 0 20px; }
+  .msg.err { border-top-color:var(--pink); }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--black); color:var(--white); padding:12px 18px; max-width:90vw; font-weight:500; display:none; z-index:10; border-left:6px solid var(--green); }
+  #toast.err { border-left-color:var(--pink); }
+
+  .tools { display:flex; gap:10px 18px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .tabs { display:flex; } .tabs button { all:unset; cursor:pointer; padding:9px 16px; background:var(--white); border:1px solid var(--line); font:900 .8rem Nunito,sans-serif; letter-spacing:.05em; text-transform:uppercase; }
+  .tabs button.on { background:var(--black); color:var(--white); border-color:var(--black); }
+  .tg { display:flex; gap:8px; align-items:center; font-size:.9rem; cursor:pointer; } .tg input { width:20px; height:20px; accent-color:#000; }
+  .prog { margin-left:auto; display:flex; gap:10px; align-items:center; font-size:.9rem; font-weight:500; }
+  .prog .pb { width:140px; height:10px; background:var(--line); } .prog .pb div { height:100%; background:var(--green); }
+
+  .tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
+  .tile { all:unset; cursor:pointer; background:var(--white); border-top:6px solid var(--black); padding:14px 16px; display:flex; flex-direction:column; gap:3px; box-sizing:border-box; }
+  .tile.od { border-top-color:var(--pink); } .tile.w0 { border-top-color:var(--amber); } .tile.later { border-top-color:var(--grey); } .tile.done { border-top-color:var(--green); }
+  .tile.on { outline:3px solid var(--black); outline-offset:-3px; }
+  .tile .n { font:900 2.4rem Nunito,sans-serif; line-height:1; } .tile.od .n { color:var(--pink); } .tile.zero .n { color:var(--green); }
+  .tile .t { font:900 .85rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.05em; } .tile .s { font-size:.8rem; color:var(--grey); }
+  .strip { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:8px; }
+  .strip i { height:22px; background:var(--light); font:600 .62rem Jost; font-style:normal; display:flex; align-items:center; justify-content:center; color:var(--grey); }
+  .strip i.has { background:var(--black); color:var(--white); } .strip i.has.od { background:var(--pink); } .strip i.has.w0 { background:var(--amber); color:#000; }
+  .strip i.today { outline:2px solid var(--black); outline-offset:-2px; } .strip i.past { opacity:.5; }
+  @media (max-width:980px){ .tiles{grid-template-columns:1fr 1fr 1fr;} } @media (max-width:640px){ .tiles{grid-template-columns:1fr 1fr;} }
+
+  .blk { background:var(--white); margin-bottom:14px; border-top:6px solid var(--black); }
+  .blk.od { border-top-color:var(--pink); } .blk.w0 { border-top-color:var(--amber); } .blk.later { border-top-color:var(--grey); } .blk.done { border-top-color:var(--green); }
+  .dayh { padding:8px 16px 4px; font:900 .78rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.06em; background:var(--light); display:flex; justify-content:space-between; }
+  .dayh.od { color:var(--pink); }
+  .nothing { padding:16px; color:var(--green); font-weight:600; display:flex; gap:8px; align-items:center; } .nothing::before { content:"✓"; font-size:1.3rem; }
+  .row { display:grid; grid-template-columns:34px 64px 1fr auto; gap:12px; align-items:center; padding:10px 16px; border-top:1px solid var(--line); }
+  .row.done { opacity:.6; } .row.done .lf { text-decoration:line-through; }
+  .row input { width:26px; height:26px; accent-color:var(--green); cursor:pointer; } .row input:disabled { cursor:default; }
+  .busy .row input, .busy .tile, .busy .tabs button { pointer-events:none; } .busy { opacity:.6; transition:opacity .2s; }
+  .dt { text-align:center; background:var(--light); padding:5px 0; line-height:1.05; font-size:.7rem; text-transform:uppercase; letter-spacing:1px; font-weight:600; }
+  .dt b { display:block; font:900 1.05rem Nunito,sans-serif; letter-spacing:0; }
+  .dt.od { background:var(--pink); color:var(--white); } .dt.w0 { background:var(--amber); } .dt.w1, .dt.later { background:var(--black); color:var(--white); } .dt.done { background:var(--green); color:var(--white); }
+  .lf { display:inline-flex; align-items:center; gap:8px; font:900 1rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.03em; color:var(--text); text-decoration:none; }
+  .lf span { background:var(--black); color:var(--white); font:500 .64rem Jost; letter-spacing:1px; padding:3px 8px; white-space:nowrap; } .lf:hover span { background:#656565; }
+  .nr { font-size:.78rem; color:var(--grey); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:3px; }
+  .chip { font-size:.7rem; font-weight:600; padding:2px 8px; background:#e9f6ee; color:var(--green); } .chip.n { background:var(--light); color:var(--grey); } .chip.m { background:var(--pink); color:var(--white); }
+  .amt { text-align:right; white-space:nowrap; } .amt b { font:900 1.1rem Nunito,sans-serif; display:block; } .amt small { font-size:.72rem; text-decoration:line-through; }
+  @media (max-width:560px){ .row{grid-template-columns:30px 54px 1fr;} .amt{grid-column:3; text-align:left;} .prog{margin-left:0;} }
+
+  .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
+</style>
+</head>
+<body>
+<header><div class="bar"><img src="assets/logo-weiss.svg" alt="Cycle Village"><div class="who"><b>Rechnungslauf</b><span id="who"></span></div></div></header>
+<div class="test" id="testbar" hidden>TESTMODUS: Haken werden nur in die Testkopie der Excel geschrieben.</div>
+<main id="app"></main>
+<div id="toast"></div>
+
+<script src="msal-browser.min.js"></script>
+<script>
+// ---------- Einstellungen ----------
+const CFG = {
+  clientId: 'f23eab95-411d-47af-a700-457f3a940d94',
+  tenant: 'b7d31561-b430-4c3f-9b4b-91457c335ef2',
+  redirect: 'https://huberfra-boop.github.io/rechnungslauf/',
+  driveId: 'b!0V55JLKX2UGsjdZOFwNIaMlep2OJiuNDuJjkfeSD9FAUS2WMGsfPRIBSop3mFXCP',
+  ordner: '02_Finanzen/Buchhaltung/01_Lieferantenrechnungen_Diverse',
+  dateien: { echt: 'Lieferantenrechnungen.xlsx', test: 'Lieferantenrechnungen_TEST.xlsx' },
+  standard: 'test',            // 'test' = Testkopie, 'echt' = Produktiv-Excel
+  blatt: 'Rechnungen',
+  spBase: 'https://cyclevillage.sharepoint.com/sites/CYCLEVILLAGEAG/Freigegebene%20Dokumente/',
+  scopes: ['Files.ReadWrite.All', 'User.Read'],
+  erledigtTage: 14             // bezahlte Rechnungen bleiben so lange unter "Erledigt" sichtbar
+};
+const qp = new URLSearchParams(location.search);
+const DEMO = qp.get('demo') === '1';
+const modus = CFG.dateien[qp.get('datei')] ? qp.get('datei') : CFG.standard;
+const FILE = `/drives/${CFG.driveId}/root:/${CFG.ordner.split('/').concat(CFG.dateien[modus]).map(encodeURIComponent).join('/')}:`;
+const SHEET = `${FILE}/workbook/worksheets('${CFG.blatt}')`;
+document.getElementById('testbar').hidden = !(modus === 'test' || DEMO);
+if (DEMO) document.getElementById('testbar').textContent = 'DEMO: Beispieldaten, es wird nichts gespeichert.';
+
+// ---------- Hilfsfunktionen ----------
+const chf = n => 'CHF ' + Number(n).toLocaleString('de-CH', {minimumFractionDigits:2, maximumFractionDigits:2});
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'], WDL = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'], WD7 = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+const hp = qp.get('heute'); // Testdatum, z. B. ?heute=2026-11-12
+const today = hp ? new Date(hp + 'T00:00:00') : new Date(); today.setHours(0,0,0,0);
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const parseCH = s => { const [d,m,y] = s.split('.'); return new Date(+y, m-1, +d); };
+const ds = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.`;
+const dsFull = d => ds(d) + d.getFullYear();
+const serial2date = s => (typeof s === 'number' && s > 0) ? new Date(1899, 11, 30 + Math.floor(s)) : null;
+const mon0 = addDays(today, -((today.getDay()+6)%7));
+const kwNr = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate()+4-n); return Math.ceil(((t - Date.UTC(t.getUTCFullYear(),0,1))/864e5+1)/7); };
+const weekIdx = d => Math.floor((d - mon0) / (7*864e5));
+const range = w => `${ds(addDays(mon0, w*7))}–${ds(addDays(mon0, w*7+6))}`;
+const app = document.getElementById('app');
+let toastT;
+function toast(text, err) { const t = document.getElementById('toast'); t.textContent = text; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', err ? 9000 : 3500); }
+const showMsg = (title, text, err, btn) => { app.innerHTML = `<div class="msg ${err ? 'err' : ''}"><h2>${esc(title)}</h2><p>${esc(text)}</p>${btn ? `<button class="btn" id="msgbtn">${esc(btn)}</button>` : ''}</div>`; };
+
+// ---------- Anmeldung und Microsoft Graph ----------
+let pca, account = null;
+async function token() {
+  try { return (await pca.acquireTokenSilent({ scopes: CFG.scopes, account })).accessToken; }
+  catch (e) { await pca.acquireTokenRedirect({ scopes: CFG.scopes, account }); throw e; }
+}
+async function graph(method, path, body, raw) {
+  const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
+    method, headers: { Authorization: 'Bearer ' + await token(), ...(body ? {'Content-Type': 'application/json'} : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) {
+    let m = ''; try { m = (await r.json()).error?.message || ''; } catch(e) {}
+    const err = new Error(r.status === 423 ? 'Die Excel ist gerade gesperrt. Bitte in einer Minute nochmals versuchen.' : r.status === 404 ? 'Die Excel-Datei wurde nicht gefunden (' + CFG.dateien[modus] + ').' : r.status === 403 ? 'Kein Zugriff auf die Excel. Bitte Franz melden.' : 'Fehler bei Microsoft (' + r.status + '): ' + m);
+    err.status = r.status; throw err;
+  }
+  return raw ? r : (r.status === 204 ? null : r.json());
+}
+
+// ---------- Daten ----------
+let ALL = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
+const skOn = () => !!document.getElementById('sk')?.checked;
+const demoRows = () => { const d = n => addDays(today, n), o = (l, nr, b, n, extra) => ({ row: 100+ALL_DEMO_N++, lieferant: l, nr, betrag: b, netto: d(n), status: 'offen', bezahltAm: null, mahnung: false, ablage: '01_Pendente_Rechnungen\\x.pdf', bemerkung: '', ...extra });
+  return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
+let ALL_DEMO_N = 0;
+
+function build(raw) {
+  noDate = 0;
+  return raw.map(f => {
+    const m = (f.bemerkung || '').match(/Skonto.*?bis\s+(\d{2}\.\d{2}\.\d{4})/), mm = (f.bemerkung || '').match(/\(CHF\s*([\d'.,]+)\)/);
+    const skBetrag = mm ? parseFloat(mm[1].replace(/'/g, '')) : null;
+    return { ...f, sk: m ? parseCH(m[1]) : null, skBetrag, spart: skBetrag ? f.betrag - skBetrag : 0, paid: f.status === 'bezahlt',
+      undoOk: /^01_Pendente/i.test(f.ablage), pdfUrl: f.ablage ? CFG.spBase + f.ablage.split(/[\\/]/).map(encodeURIComponent).join('/') : null };
+  });
+}
+async function load() {
+  let raw;
+  if (DEMO) { ALL_DEMO_N = 0; raw = demoRows(); }
+  else {
+    const r = await graph('GET', `${SHEET}/usedRange?$select=values,rowIndex`);
+    raw = [];
+    r.values.forEach((v, i) => {
+      const row = r.rowIndex + i + 1;
+      if (row < 2 || !String(v[0] ?? '').trim()) return;
+      const status = String(v[5] ?? '').trim().toLowerCase(), netto = serial2date(v[4]), bezahltAm = serial2date(v[6]);
+      if (status === 'offen' && !netto) { noDate++; return; }
+      if (status === 'offen' || (status === 'bezahlt' && bezahltAm && bezahltAm >= addDays(today, -CFG.erledigtTage)))
+        raw.push({ row, lieferant: String(v[0]).trim(), nr: String(v[1] ?? ''), betrag: Number(v[3]) || 0, netto: netto || bezahltAm, status, bezahltAm,
+          mahnung: !!String(v[7] ?? '').trim() && !/^(0|nein)$/i.test(String(v[7]).trim()), ablage: String(v[8] ?? ''), bemerkung: String(v[9] ?? '') });
+    });
+  }
+  ALL = build(raw); loadedAt = new Date();
+}
+
+const eff = f => (!f.paid && skOn() && f.sk) ? f.sk : f.netto;
+const sumOf = l => l.reduce((a,f) => a + ((skOn() && f.sk && f.skBetrag && !f.paid) ? f.skBetrag : f.betrag), 0);
+const bucket = f => { const d = eff(f); if (d < today) return 'od'; const w = weekIdx(d); return w <= 0 ? 'w0' : w === 1 ? 'w1' : 'later'; };
+const sortEff = l => [...l].sort((a,b) => eff(a) - eff(b));
+
+function row(f, b) {
+  const d = eff(f), use = !f.paid && skOn() && f.sk && f.skBetrag, chips = [];
+  if (f.sk && !f.paid) chips.push(`<span class="chip">Skonto bis ${ds(f.sk)}${f.spart ? ' · spart ' + chf(f.spart) : ''}</span>`);
+  if (use) chips.push(`<span class="chip n">netto bis ${ds(f.netto)}</span>`);
+  if (f.mahnung) chips.push('<span class="chip m">Mahnung</span>');
+  if (f.paid && f.bezahltAm) chips.push(`<span class="chip n">bezahlt am ${dsFull(f.bezahltAm)}</span>`);
+  const lock = f.paid && !f.undoOk;
+  const link = f.pdfUrl ? `<a class="lf" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${f.row}">${esc(f.lieferant)}<span>PDF öffnen ↗</span></a>` : `<span class="lf">${esc(f.lieferant)}</span>`;
+  return `<div class="row ${f.paid ? 'done' : ''}"><input type="checkbox" data-k="${f.row}" ${f.paid ? 'checked' : ''} ${lock ? 'disabled title="Schon abgelegt. Änderungen bitte in der Excel."' : ''} aria-label="${esc(f.lieferant)} als bezahlt markieren">
+    <div class="dt ${f.paid ? 'done' : b}">${WD[d.getDay()]}<b>${ds(d)}</b></div>
+    <div>${link}<div class="nr">Rechnung ${esc(f.nr)}</div><div class="chips">${chips.join('')}</div></div>
+    <div class="amt">${use ? `<b>${chf(f.skBetrag)}</b><small>${chf(f.betrag)}</small>` : `<b>${chf(f.betrag)}</b>`}</div></div>`;
+}
+function byDay(list, tone) {
+  if (!list.length) return '<div class="nothing">Nichts fällig</div>';
+  const days = [...new Set(sortEff(list).map(f => eff(f).toDateString()))];
+  return days.map(k => { const d = new Date(k), l = sortEff(list).filter(f => eff(f).toDateString() === k);
+    return `<div class="dayh ${d < today && !tone ? 'od' : ''}"><span>${WDL[d.getDay()]}, ${ds(d)}${d < today && !tone ? ' · überfällig' : ''}</span><span>${chf(sumOf(l))}</span></div>${l.map(f => row(f, tone || bucket(f))).join('')}`; }).join('');
+}
+function byKW(list) {
+  if (!list.length) return '<div class="nothing">Nichts fällig</div>';
+  const ws = [...new Set(list.map(f => weekIdx(eff(f))))].sort((a,b) => a-b);
+  return ws.map(w => { const l = list.filter(f => weekIdx(eff(f)) === w);
+    return `<div class="dayh"><span>KW ${kwNr(addDays(mon0, w*7))} · ${range(w)}</span><span>${chf(sumOf(l))}</span></div>${sortEff(l).map(f => row(f, 'later')).join('')}`; }).join('');
+}
+function strip(w, list) {
+  return `<div class="strip">${[...Array(7)].map((_, i) => { const d = addDays(mon0, w*7 + i), n = list.filter(f => eff(f).getTime() === d.getTime()).length, od = n && d < today;
+    return `<i class="${n ? 'has' : ''} ${od ? 'od' : w === 0 ? 'w0' : ''} ${d.getTime() === today.getTime() ? 'today' : ''} ${d < today ? 'past' : ''}" title="${WDL[d.getDay()]} ${ds(d)}">${n || WD7[i][0]}</i>`; }).join('')}</div>`;
+}
+
+function render() {
+  const keepSk = skOn();
+  const open = ALL.filter(f => !f.paid), done = ALL.filter(f => f.paid);
+  const g = { od: open.filter(f => bucket(f) === 'od'), w0: open.filter(f => bucket(f) === 'w0'), w1: open.filter(f => bucket(f) === 'w1'), later: open.filter(f => bucket(f) === 'later'), done };
+  g.jetzt = [...g.od, ...g.w0, ...g.w1];
+  const defs = [['od','Überfällig',''],['w0','Diese Woche',range(0)],['w1','Nächste Woche',range(1)],['later','Später','ab ' + ds(addDays(mon0,14))],['done','Erledigt','letzte ' + CFG.erledigtTage + ' Tage']];
+  const tiles = defs.map(([k,t,s]) => `<button class="tile ${k} ${g[k].length || k === 'done' ? '' : 'zero'} ${sel === k ? 'on' : ''}" data-s="${k}">
+    <span class="n">${g[k].length || (k === 'done' ? '0' : '✓')}</span><span class="t">${t}</span>
+    <span class="s">${k === 'done' ? (g[k].length ? chf(sumOf(g[k])) : 'noch nichts') : g[k].length ? chf(sumOf(g[k])) : 'nichts fällig'}</span>${(k === 'w0' || k === 'w1') ? strip(k === 'w0' ? 0 : 1, g[k]) : ''}${s ? `<span class="s">${s}</span>` : ''}</button>`).join('');
+  const tot = ALL.length, n = done.length;
+  app.innerHTML = `<div class="tools">
+      <label class="tg"><input type="checkbox" id="sk" ${keepSk ? 'checked' : ''}> Skonto-Fristen berücksichtigen</label>
+      <button class="btn" id="reload">Aktualisieren</button>
+      <div class="prog"><span>${n} von ${tot} erledigt</span><div class="pb"><div style="width:${tot ? n/tot*100 : 0}%"></div></div></div>
+    </div>
+    <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
+    <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
+    <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
+    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+}
+
+// ---------- Haken setzen (schreibt in die Excel) ----------
+async function setStatus(f, neu) {
+  if (busy) return; busy = true; render();
+  try {
+    if (!DEMO) {
+      const rg = `${SHEET}/range(address='A${f.row}:G${f.row}')`;
+      const cur = (await graph('GET', rg + '?$select=values')).values[0];
+      if (String(cur[0]).trim() !== f.lieferant || String(cur[1] ?? '') !== f.nr) throw new Error('Die Zeile in der Excel hat sich verändert. Die Seite wird neu geladen, bitte nochmals versuchen.');
+      const erwartet = neu === 'bezahlt' ? 'offen' : 'bezahlt';
+      if (String(cur[5]).trim().toLowerCase() !== erwartet) throw new Error('Der Status dieser Rechnung wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
+      await graph('PATCH', `${SHEET}/range(address='F${f.row}')`, { values: [[neu]] });
+      const chk = (await graph('GET', rg + '?$select=values')).values[0];
+      if (String(chk[5]).trim().toLowerCase() !== neu) throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
+      f.bezahltAm = neu === 'bezahlt' ? (serial2date(chk[6]) || today) : null;
+    } else f.bezahltAm = neu === 'bezahlt' ? today : null;
+    f.paid = neu === 'bezahlt'; f.status = neu;
+    toast(neu === 'bezahlt' ? `${f.lieferant}: als bezahlt gespeichert ✓` : `${f.lieferant}: wieder auf offen gesetzt`);
+  } catch (e) {
+    toast(e.message, true);
+    try { await load(); } catch (e2) {}
+  } finally { busy = false; render(); }
+}
+
+// ---------- PDF öffnen (funktioniert auch ohne SharePoint-Anmeldung im Browser) ----------
+async function openPdf(f) {
+  const w = window.open('', '_blank');
+  if (w) w.document.write('<p style="font:16px sans-serif;padding:20px">PDF wird geladen …</p>');
+  const fallback = () => { if (w) w.location = f.pdfUrl; else window.open(f.pdfUrl, '_blank'); };
+  if (DEMO) return fallback();
+  try {
+    const p = `/drives/${CFG.driveId}/root:/${(CFG.ordner + '/' + f.ablage.replace(/\\/g, '/')).split('/').map(encodeURIComponent).join('/')}`;
+    const it = await graph('GET', p + '?$select=@microsoft.graph.downloadUrl');
+    const buf = await (await fetch(it['@microsoft.graph.downloadUrl'])).arrayBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+    if (w) w.location = url; else window.open(url, '_blank');
+  } catch (e) { fallback(); }
+}
+
+// ---------- Ereignisse ----------
+document.addEventListener('change', e => {
+  if (e.target.matches('input[data-k]')) {
+    const f = ALL.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
+    if (e.target.checked) setStatus(f, 'bezahlt');
+    else if (confirm(`${f.lieferant} wieder auf «offen» setzen?`)) setStatus(f, 'offen');
+    else { e.target.checked = true; }
+  }
+  if (e.target.id === 'sk') render();
+});
+document.addEventListener('click', async e => {
+  const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
+  const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(ALL.find(x => String(x.row) === p.dataset.pdf)); return; }
+  if (e.target.id === 'reload') refresh(true);
+  if (e.target.id === 'li') pca.loginRedirect({ scopes: CFG.scopes });
+  if (e.target.id === 'lo') pca.logoutRedirect({ account });
+  if (e.target.id === 'msgbtn') location.reload();
+});
+async function refresh(show) {
+  if (busy) return;
+  try { await load(); render(); if (show) toast('Aktualisiert'); }
+  catch (e) { toast(e.message, true); }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && loadedAt && Date.now() - loadedAt > 60000) refresh(); });
+setInterval(() => { if (!document.hidden && loadedAt && Date.now() - loadedAt > 300000) refresh(); }, 60000);
+
+// ---------- Start ----------
+(async function start() {
+  if (DEMO) { document.getElementById('who').textContent = 'Demo'; await load(); return render(); }
+  if (typeof window.msal === 'undefined') return showMsg('Fehler', 'Die Anmelde-Bibliothek konnte nicht geladen werden.', true, 'Neu laden');
+  pca = new window.msal.PublicClientApplication({ auth: { clientId: CFG.clientId, authority: 'https://login.microsoftonline.com/' + CFG.tenant, redirectUri: CFG.redirect }, cache: { cacheLocation: 'localStorage' } });
+  try {
+    await pca.initialize();
+    const res = await pca.handleRedirectPromise();
+    account = res?.account || pca.getAllAccounts()[0] || null;
+  } catch (e) { return showMsg('Anmeldung fehlgeschlagen', e.message, true, 'Neu laden'); }
+  if (!account) {
+    app.innerHTML = '<div class="login"><h2>Rechnungslauf</h2><p>Bitte mit dem Microsoft-Konto von Cycle Village anmelden.</p><button class="btn" id="li">Mit Microsoft anmelden</button></div>';
+    return;
+  }
+  document.getElementById('who').innerHTML = esc(account.name || account.username) + '<a id="lo">Abmelden</a>';
+  showMsg('Lade Rechnungen …', 'Einen Moment bitte.');
+  try { await load(); render(); }
+  catch (e) { showMsg('Rechnungen konnten nicht geladen werden', e.message, true, 'Neu laden'); }
+})();
+</script>
+</body>
+</html>
