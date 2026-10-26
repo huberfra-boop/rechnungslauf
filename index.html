@@ -128,11 +128,12 @@ async function token() {
   catch (e) { await pca.acquireTokenRedirect({ scopes: CFG.scopes, account }); throw e; }
 }
 async function graph(method, path, body, raw) {
+  const tk = await token();
   const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
-    method, headers: { Authorization: 'Bearer ' + await token(), ...(body ? {'Content-Type': 'application/json'} : {}) }, body: body ? JSON.stringify(body) : undefined });
+    method, headers: { Authorization: 'Bearer ' + tk,...(body ? {'Content-Type': 'application/json'} : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (!r.ok) {
     let m = ''; try { m = (await r.json()).error?.message || ''; } catch(e) {}
-    const err = new Error(r.status === 423 ? 'Die Excel ist gerade gesperrt. Bitte in einer Minute nochmals versuchen.' : r.status === 404 ? 'Die Excel-Datei wurde nicht gefunden (' + CFG.dateien[modus] + ').' : r.status === 403 ? 'Kein Zugriff auf die Excel. Bitte Franz melden.' : 'Fehler bei Microsoft (' + r.status + '): ' + m);
+    const err = new Error(r.status === 423 ? 'Die Excel ist gerade gesperrt. Bitte in einer Minute nochmals versuchen.' : r.status === 404 ? 'Die Excel-Datei wurde nicht gefunden (' + CFG.dateien[modus] + '). Technisch: ' + m : r.status === 403 ? 'Kein Zugriff auf die Excel. Technisch: ' + m + ' [Rechte: ' + (() => { try { return JSON.parse(atob(tk.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).scp; } catch(e) { return '?'; } })() + ']' : 'Fehler bei Microsoft (' + r.status + '): ' + m);
     err.status = r.status; throw err;
   }
   return raw ? r : (r.status === 204 ? null : r.json());
