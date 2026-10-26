@@ -97,7 +97,11 @@ const qp = new URLSearchParams(location.search);
 const DEMO = qp.get('demo') === '1';
 const modus = CFG.dateien[qp.get('datei')] ? qp.get('datei') : CFG.standard;
 const FILE = `/drives/${CFG.driveId}/root:/${CFG.ordner.split('/').concat(CFG.dateien[modus]).map(encodeURIComponent).join('/')}:`;
-const SHEET = `${FILE}/workbook/worksheets('${CFG.blatt}')`;
+let SHEET = null; // Microsoft verlangt für die Excel-Schnittstelle die Datei-ID, ein Pfad genügt nicht
+async function sheet() {
+  if (!SHEET) { const it = await graph('GET', FILE.slice(0, -1) + '?$select=id'); SHEET = `/drives/${CFG.driveId}/items/${it.id}/workbook/worksheets('${CFG.blatt}')`; }
+  return SHEET;
+}
 document.getElementById('testbar').hidden = !(modus === 'test' || DEMO);
 if (DEMO) document.getElementById('testbar').textContent = 'DEMO: Beispieldaten, es wird nichts gespeichert.';
 
@@ -159,7 +163,7 @@ async function load() {
   let raw;
   if (DEMO) { ALL_DEMO_N = 0; raw = demoRows(); }
   else {
-    const r = await graph('GET', `${SHEET}/usedRange?$select=values,rowIndex`);
+    const r = await graph('GET', `${await sheet()}/usedRange?$select=values,rowIndex`);
     raw = [];
     r.values.forEach((v, i) => {
       const row = r.rowIndex + i + 1;
@@ -235,12 +239,12 @@ async function setStatus(f, neu) {
   if (busy) return; busy = true; render();
   try {
     if (!DEMO) {
-      const rg = `${SHEET}/range(address='A${f.row}:G${f.row}')`;
+      const rg = `${await sheet()}/range(address='A${f.row}:G${f.row}')`;
       const cur = (await graph('GET', rg + '?$select=values')).values[0];
       if (String(cur[0]).trim() !== f.lieferant || String(cur[1] ?? '') !== f.nr) throw new Error('Die Zeile in der Excel hat sich verändert. Die Seite wird neu geladen, bitte nochmals versuchen.');
       const erwartet = neu === 'bezahlt' ? 'offen' : 'bezahlt';
       if (String(cur[5]).trim().toLowerCase() !== erwartet) throw new Error('Der Status dieser Rechnung wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
-      await graph('PATCH', `${SHEET}/range(address='F${f.row}')`, { values: [[neu]] });
+      await graph('PATCH', `${await sheet()}/range(address='F${f.row}')`, { values: [[neu]] });
       const chk = (await graph('GET', rg + '?$select=values')).values[0];
       if (String(chk[5]).trim().toLowerCase() !== neu) throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
       f.bezahltAm = neu === 'bezahlt' ? (serial2date(chk[6]) || today) : null;
