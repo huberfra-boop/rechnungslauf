@@ -68,6 +68,18 @@
   .amt { text-align:right; white-space:nowrap; } .amt b { font:900 1.1rem Nunito,sans-serif; display:block; } .amt small { font-size:.72rem; text-decoration:line-through; }
   @media (max-width:560px){ .row{grid-template-columns:30px 54px 1fr;} .amt{grid-column:3; text-align:left;} .prog{margin-left:0;} }
 
+  .gut { background:var(--white); border:4px solid var(--pink); margin-bottom:16px; }
+  .gut h2 { background:var(--pink); color:var(--white); padding:10px 16px; font-size:1rem; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .gut .gi { display:grid; grid-template-columns:1fr auto auto; gap:6px 16px; align-items:center; padding:12px 16px; border-top:1px solid var(--line); }
+  .gut .gi:first-of-type { border-top:0; }
+  .gut .gl { font:900 1.05rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.03em; }
+  .gut .ga { font:900 1.25rem Nunito,sans-serif; color:var(--pink); white-space:nowrap; text-align:right; }
+  .gut .gh { padding:8px 16px 12px; font-size:.82rem; color:var(--grey); border-top:1px solid var(--line); }
+  .gut .gerr { padding:12px 16px; font-weight:600; color:var(--pink); }
+  .gbtn { background:var(--green); } .gbtn:hover { background:#14793f; }
+  .busy .gbtn { pointer-events:none; }
+  @media (max-width:560px){ .gut .gi{grid-template-columns:1fr auto;} .gut .gbtn{grid-column:1 / -1; text-align:center;} }
+  .chip.g { background:var(--pink); color:var(--white); font-weight:900; }
   .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
 </style>
 </head>
@@ -89,6 +101,7 @@ const CFG = {
   dateien: { echt: 'Lieferantenrechnungen.xlsx', test: 'Lieferantenrechnungen_TEST.xlsx' },
   standard: 'echt',            // 'test' = Testkopie, 'echt' = Produktiv-Excel
   blatt: 'Rechnungen',
+  guthabenBlatt: 'Gutschriften',   // Gutschriften und Doppelzahlungen (Guthaben, die bei der Zahlung abgezogen werden)
   spBase: 'https://cyclevillage.sharepoint.com/sites/CYCLEVILLAGEAG/Freigegebene%20Dokumente/',
   scopes: ['Files.ReadWrite.All', 'User.Read'],
   erledigtTage: 14             // bezahlte Rechnungen bleiben so lange unter "Erledigt" sichtbar
@@ -97,11 +110,13 @@ const qp = new URLSearchParams(location.search);
 const DEMO = qp.get('demo') === '1';
 const modus = CFG.dateien[qp.get('datei')] ? qp.get('datei') : CFG.standard;
 const FILE = `/drives/${CFG.driveId}/root:/${CFG.ordner.split('/').concat(CFG.dateien[modus]).map(encodeURIComponent).join('/')}:`;
-let SHEET = null; // Microsoft verlangt für die Excel-Schnittstelle die Datei-ID, ein Pfad genügt nicht
-async function sheet() {
-  if (!SHEET) { const it = await graph('GET', FILE.slice(0, -1) + '?$select=id'); SHEET = `/drives/${CFG.driveId}/items/${it.id}/workbook/worksheets('${CFG.blatt}')`; }
-  return SHEET;
+let WBS = null; // Microsoft verlangt für die Excel-Schnittstelle die Datei-ID, ein Pfad genügt nicht
+async function wbs() {
+  if (!WBS) { const it = await graph('GET', FILE.slice(0, -1) + '?$select=id'); WBS = `/drives/${CFG.driveId}/items/${it.id}/workbook/worksheets`; }
+  return WBS;
 }
+async function sheet() { return `${await wbs()}('${CFG.blatt}')`; }
+async function gsheet() { return `${await wbs()}('${CFG.guthabenBlatt}')`; }
 document.getElementById('testbar').hidden = !(modus === 'test' || DEMO);
 if (DEMO) document.getElementById('testbar').textContent = 'DEMO: Beispieldaten, es wird nichts gespeichert.';
 
@@ -149,6 +164,22 @@ const skOn = () => !!document.getElementById('sk')?.checked;
 const demoRows = () => { const d = n => addDays(today, n), o = (l, nr, b, n, extra) => ({ row: 100+ALL_DEMO_N++, lieferant: l, nr, betrag: b, netto: d(n), status: 'offen', bezahltAm: null, mahnung: false, ablage: '01_Pendente_Rechnungen\\x.pdf', bemerkung: '', ...extra });
   return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
 let ALL_DEMO_N = 0;
+let GUT = [], gutFehler = ''; // offene Guthaben (Blatt Gutschriften, Status offen)
+const demoGut = () => [{ row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }];
+// gleicher Lieferant: gleich (Gross/Klein egal) oder einer beginnt mit dem anderen (mind. 4 Zeichen), wie in der Rechnungsautomation
+const gleich = (a, b) => { const x = a.trim().toLowerCase(), y = b.trim().toLowerCase(); return x === y || (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x))); };
+// Guthaben auf die offenen Rechnungen des gleichen Lieferanten verteilen (früheste Fälligkeit zuerst): wie viel ist bei welcher Rechnung abzuziehen?
+function verteile() {
+  ALL.forEach(f => { f.abzug = 0; });
+  GUT.forEach(g => { g.rest = g.betrag; g.offenN = 0; g.offenSumme = 0; g.auf = []; });
+  [...ALL.filter(f => !f.paid)].sort((a, b) => a.netto - b.netto).forEach(f => {
+    GUT.filter(g => gleich(g.lieferant, f.lieferant)).forEach(g => {
+      g.offenN++; g.offenSumme += f.betrag;
+      const nimm = Math.min(g.rest, f.betrag - f.abzug);
+      if (nimm > 0.004) { f.abzug += nimm; g.rest -= nimm; g.auf.push({ nr: f.nr, betrag: nimm }); }
+    });
+  });
+}
 
 function build(raw) {
   noDate = 0;
@@ -176,10 +207,24 @@ async function load() {
     });
   }
   ALL = build(raw); loadedAt = new Date();
+  // Guthaben lesen (ein Fehler hier darf die Rechnungen nicht blockieren, wird aber oben deutlich gemeldet)
+  GUT = []; gutFehler = '';
+  if (DEMO) GUT = demoGut();
+  else {
+    try {
+      const g = await graph('GET', `${await gsheet()}/usedRange?$select=values,rowIndex`);
+      g.values.forEach((v, i) => {
+        const row = g.rowIndex + i + 1;
+        if (row < 2 || !String(v[0] ?? '').trim() || String(v[5] ?? '').trim().toLowerCase() !== 'offen') return;
+        GUT.push({ row, lieferant: String(v[0]).trim(), nr: String(v[1] ?? ''), datum: serial2date(v[2]), betrag: Math.abs(Number(v[3]) || 0), bezug: String(v[4] ?? ''), dz: /^doppelzahlung/i.test(String(v[4] ?? '')) });
+      });
+    } catch (e) { gutFehler = e.message; }
+  }
+  verteile();
 }
 
 const eff = f => (!f.paid && skOn() && f.sk) ? f.sk : f.netto;
-const sumOf = l => l.reduce((a,f) => a + ((skOn() && f.sk && f.skBetrag && !f.paid) ? f.skBetrag : f.betrag), 0);
+const sumOf = l => l.reduce((a,f) => a + ((skOn() && f.sk && f.skBetrag && !f.paid) ? f.skBetrag : f.betrag) - (f.paid ? 0 : (f.abzug || 0)), 0);
 const bucket = f => { const d = eff(f); if (d < today) return 'od'; const w = weekIdx(d); return w <= 0 ? 'w0' : w === 1 ? 'w1' : 'later'; };
 const sortEff = l => [...l].sort((a,b) => eff(a) - eff(b));
 
@@ -188,13 +233,15 @@ function row(f, b) {
   if (f.sk && !f.paid) chips.push(`<span class="chip">Skonto bis ${ds(f.sk)}${f.spart ? ' · spart ' + chf(f.spart) : ''}</span>`);
   if (use) chips.push(`<span class="chip n">netto bis ${ds(f.netto)}</span>`);
   if (f.mahnung) chips.push('<span class="chip m">Mahnung</span>');
+  const abz = (!f.paid && f.abzug > 0.004) ? f.abzug : 0;
+  if (abz) chips.push(`<span class="chip g">⚠ Guthaben abziehen: ${chf(abz)}</span>`);
   if (f.paid && f.bezahltAm) chips.push(`<span class="chip n">bezahlt am ${dsFull(f.bezahltAm)}</span>`);
   const lock = f.paid && !f.undoOk;
   const link = f.pdfUrl ? `<a class="lf" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${f.row}">${esc(f.lieferant)}<span>PDF öffnen ↗</span></a>` : `<span class="lf">${esc(f.lieferant)}</span>`;
   return `<div class="row ${f.paid ? 'done' : ''}"><input type="checkbox" data-k="${f.row}" ${f.paid ? 'checked' : ''} ${lock ? 'disabled title="Schon abgelegt. Änderungen bitte in der Excel."' : ''} aria-label="${esc(f.lieferant)} als bezahlt markieren">
     <div class="dt ${f.paid ? 'done' : b}">${WD[d.getDay()]}<b>${ds(d)}</b></div>
     <div>${link}<div class="nr">Rechnung ${esc(f.nr)}</div><div class="chips">${chips.join('')}</div></div>
-    <div class="amt">${use ? `<b>${chf(f.skBetrag)}</b><small>${chf(f.betrag)}</small>` : `<b>${chf(f.betrag)}</b>`}</div></div>`;
+    <div class="amt">${(() => { const base = use ? f.skBetrag : f.betrag; return abz ? `<b>${chf(Math.max(0, base - abz))}</b><small>${chf(base)}</small>` : use ? `<b>${chf(f.skBetrag)}</b><small>${chf(f.betrag)}</small>` : `<b>${chf(f.betrag)}</b>`; })()}</div></div>`;
 }
 function byDay(list, tone) {
   if (!list.length) return '<div class="nothing">Nichts fällig</div>';
@@ -223,7 +270,16 @@ function render() {
     <span class="n">${g[k].length || (k === 'done' ? '0' : '✓')}</span><span class="t">${t}</span>
     <span class="s">${k === 'done' ? (g[k].length ? chf(sumOf(g[k])) : 'noch nichts') : g[k].length ? chf(sumOf(g[k])) : 'nichts fällig'}</span>${(k === 'w0' || k === 'w1') ? strip(k === 'w0' ? 0 : 1, g[k]) : ''}${s ? `<span class="s">${s}</span>` : ''}</button>`).join('');
   const tot = ALL.length, n = done.length;
-  app.innerHTML = `<div class="tools">
+  const gutTotal = GUT.reduce((a, g) => a + g.betrag, 0);
+  const gutBox = gutFehler
+    ? `<section class="gut"><h2>Achtung: Guthaben konnten nicht gelesen werden</h2><div class="gerr">${esc(gutFehler)} Bitte keine Rechnung zahlen, bevor in der Excel (Blatt «Gutschriften») geprüft ist, ob ein Guthaben abzuziehen ist.</div></section>`
+    : GUT.length ? `<section class="gut"><h2><span>Achtung: Guthaben bei der Zahlung abziehen</span><span>Total ${chf(gutTotal)}</span></h2>${GUT.map(g => `<div class="gi">
+        <div><div class="gl">${esc(g.lieferant)} · ${g.dz ? 'Doppelzahlung' : 'Gutschrift'} ${esc(g.nr)}</div><div class="nr">${esc(g.bezug)}${g.datum ? ' · vom ' + dsFull(g.datum) : ''}</div>
+          <div class="nr">${g.auf.length ? 'Abzug bei: ' + g.auf.map(a => 'Rechnung ' + esc(a.nr) + ' (' + chf(a.betrag) + ')').join(', ') : 'Keine offene Rechnung dieses Lieferanten: bei der nächsten Rechnung abziehen.'}${g.rest > 0.004 && g.auf.length ? ' · noch offen: ' + chf(g.rest) : ''}</div></div>
+        <div class="ga">− ${chf(g.betrag)}</div>
+        <button class="btn gbtn" data-gv="${g.row}" title="Erst anklicken, wenn das Guthaben bei einer Zahlung wirklich abgezogen wurde">Verrechnet ✓</button></div>`).join('')}
+      <div class="gh">Die Rechnungen dieses Lieferanten unten sind mit «Guthaben abziehen» markiert; der grosse Betrag ist der Betrag nach Abzug. «Verrechnet» erst anklicken, wenn der Abzug bezahlt wurde.</div></section>` : '';
+  app.innerHTML = `${gutBox}<div class="tools">
       <label class="tg"><input type="checkbox" id="sk" ${keepSk ? 'checked' : ''}> Skonto-Fristen berücksichtigen</label>
       <button class="btn" id="reload">Aktualisieren</button>
       <div class="prog"><span>${n} von ${tot} erledigt</span><div class="pb"><div style="width:${tot ? n/tot*100 : 0}%"></div></div></div>
@@ -249,8 +305,30 @@ async function setStatus(f, neu) {
       if (String(chk[5]).trim().toLowerCase() !== neu) throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
       f.bezahltAm = neu === 'bezahlt' ? (serial2date(chk[6]) || today) : null;
     } else f.bezahltAm = neu === 'bezahlt' ? today : null;
-    f.paid = neu === 'bezahlt'; f.status = neu;
-    toast(neu === 'bezahlt' ? `${f.lieferant}: als bezahlt gespeichert ✓` : `${f.lieferant}: wieder auf offen gesetzt`);
+    const hatteAbzug = f.abzug > 0.004;
+    f.paid = neu === 'bezahlt'; f.status = neu; verteile();
+    toast(neu === 'bezahlt' ? `${f.lieferant}: als bezahlt gespeichert ✓${hatteAbzug ? ' · Guthaben abgezogen? Dann oben «Verrechnet» anklicken.' : ''}` : `${f.lieferant}: wieder auf offen gesetzt`);
+  } catch (e) {
+    toast(e.message, true);
+    try { await load(); } catch (e2) {}
+  } finally { busy = false; render(); }
+}
+
+// ---------- Guthaben als verrechnet markieren (schreibt in die Excel, Blatt Gutschriften) ----------
+async function setGut(g) {
+  if (busy) return; busy = true; render();
+  try {
+    if (!DEMO) {
+      const rg = `${await gsheet()}/range(address='A${g.row}:F${g.row}')`;
+      const cur = (await graph('GET', rg + '?$select=values')).values[0];
+      if (String(cur[0]).trim() !== g.lieferant || String(cur[1] ?? '') !== g.nr) throw new Error('Die Zeile in der Excel hat sich verändert. Die Seite wird neu geladen, bitte nochmals versuchen.');
+      if (String(cur[5]).trim().toLowerCase() !== 'offen') throw new Error('Dieses Guthaben wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
+      await graph('PATCH', `${await gsheet()}/range(address='F${g.row}')`, { values: [['verrechnet']] });
+      const chk = (await graph('GET', rg + '?$select=values')).values[0];
+      if (String(chk[5]).trim().toLowerCase() !== 'verrechnet') throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
+    }
+    GUT = GUT.filter(x => x !== g); verteile();
+    toast(`${g.lieferant}: Guthaben ${chf(g.betrag)} als verrechnet gespeichert ✓`);
   } catch (e) {
     toast(e.message, true);
     try { await load(); } catch (e2) {}
@@ -283,6 +361,8 @@ document.addEventListener('change', e => {
   if (e.target.id === 'sk') render();
 });
 document.addEventListener('click', async e => {
+  const gv = e.target.closest('[data-gv]');
+  if (gv) { const g = GUT.find(x => String(x.row) === gv.dataset.gv); if (g && confirm(`${g.lieferant}: Guthaben ${chf(g.betrag)} wirklich als «verrechnet» markieren?\n\nNur anklicken, wenn der Betrag bei einer Zahlung wirklich abgezogen wurde.`)) setGut(g); return; }
   const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
   const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(ALL.find(x => String(x.row) === p.dataset.pdf)); return; }
   if (e.target.id === 'reload') refresh(true);
