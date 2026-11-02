@@ -132,6 +132,7 @@ async function wbs() {
   return WBS;
 }
 async function sheet(name) { return `${await wbs()}('${encodeURIComponent(name || CFG.blatt)}')`; }
+const VERSION = 'Seitenversion 2 (02.11.2026, ' + (DEMO ? 'Demo' : modus === 'echt' ? 'echte Excel' : 'Testkopie') + ')';
 document.getElementById('testbar').hidden = !(modus === 'test' || DEMO);
 if (DEMO) document.getElementById('testbar').textContent = 'DEMO: Beispieldaten, es wird nichts gespeichert.';
 
@@ -292,7 +293,7 @@ function viewRechnungen() {
   return `<div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
     <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist die Rechnungsnummer. Ein Klick darauf kopiert sie in die Zwischenablage. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in CHF, inkl. MwSt. Bei Vorordner-Rechnungen gilt der vereinbarte Zahlungstermin (Rechnungsdatum + 120 Tage), auch wenn Raymon etwas anderes auf die Rechnung geschrieben hat (gelber Hinweis). Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist die Rechnungsnummer. Ein Klick darauf kopiert sie in die Zwischenablage. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in CHF, inkl. MwSt. Bei Vorordner-Rechnungen gilt der vereinbarte Zahlungstermin (Rechnungsdatum + 120 Tage), auch wenn Raymon etwas anderes auf die Rechnung geschrieben hat (gelber Hinweis). Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. ${VERSION}. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 // ---------- Ansicht «Lieferstand» ----------
@@ -336,7 +337,7 @@ function viewLiefer() {
     <div class="tools"><div class="tabs">${[['alle','Alle'],['g','Geliefert'],['o','Noch offen'],['u','Termin überschritten']].map(([k, t]) => `<button data-lf="${k}" class="${lf === k ? 'on' : ''}">${t}</button>`).join('')}</div>
       <input class="search" id="q" type="search" placeholder="Suchen: Modell, Farbe, Grösse …" value="${esc(q)}"></div>
     <section class="blk" id="lfliste">${lieferListe()}</section>
-    <p class="note">Ein Bike gilt als geliefert, sobald die Rechnung von Raymon da ist (die Excel «Raymon_Rechnungen» wird bei jeder neuen Rechnung nachgeführt). Der Wert ist der Einkaufspreis netto inkl. Fracht/Entsorgung, ohne MwSt. «Termin überschritten» heisst: Der von Raymon genannte Liefertermin ist vorbei, das Bike ist aber noch nicht geliefert. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">Ein Bike gilt als geliefert, sobald die Rechnung von Raymon da ist (die Excel «Raymon_Rechnungen» wird bei jeder neuen Rechnung nachgeführt). Der Wert ist der Einkaufspreis netto inkl. Fracht/Entsorgung, ohne MwSt. «Termin überschritten» heisst: Der von Raymon genannte Liefertermin ist vorbei, das Bike ist aber noch nicht geliefert. ${VERSION}. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 function render() {
