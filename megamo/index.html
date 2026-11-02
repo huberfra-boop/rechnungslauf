@@ -61,8 +61,10 @@
   .dt b { display:block; font:900 1.05rem Nunito,sans-serif; letter-spacing:0; }
   .dt.od { background:var(--pink); color:var(--white); } .dt.w0 { background:var(--amber); } .dt.w1, .dt.later { background:var(--black); color:var(--white); } .dt.done { background:var(--green); color:var(--white); }
   .zl { font-size:.62rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--grey); font-weight:600; }
-  .zw { display:inline-flex; align-items:center; gap:10px; font:900 1.45rem Nunito,sans-serif; letter-spacing:.02em; color:var(--text); text-decoration:none; line-height:1.15; }
-  .zw span { background:var(--black); color:var(--white); font:500 .64rem Jost; letter-spacing:1px; padding:3px 8px; white-space:nowrap; text-transform:uppercase; } .zw:hover span { background:#656565; }
+  .zwrow { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .zw { all:unset; cursor:copy; font:900 1.45rem Nunito,sans-serif; letter-spacing:.02em; color:var(--text); line-height:1.15; border-bottom:2px dotted var(--grey); }
+  .zw:hover, .zw:focus-visible { color:var(--pink); border-bottom-color:var(--pink); }
+  .pdfbtn { background:var(--black); color:var(--white); font:500 .68rem Jost; letter-spacing:1px; padding:6px 12px; white-space:nowrap; text-transform:uppercase; text-decoration:none; } .pdfbtn:hover { background:#656565; }
   .nr { font-size:.82rem; color:var(--grey); margin-top:2px; }
   .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
   .chip { font-size:.7rem; font-weight:600; padding:2px 8px; background:#e9f6ee; color:var(--green); } .chip.n { background:var(--light); color:var(--grey); } .chip.r { background:var(--black); color:var(--white); }
@@ -199,7 +201,8 @@ function row(f, b) {
   if (f.rechnungsdatum) chips.push(`<span class="chip n">Rechnung vom ${dsFull(f.rechnungsdatum)}</span>`);
   const bike = f.bike ? esc(f.bike.length > 80 ? f.bike.slice(0, 77) + '…' : f.bike) : '';
   const lock = f.paid && !f.undoOk, d = eff(f);
-  const link = f.pdfUrl ? `<a class="zw" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${f.row}">${esc(zweck)}<span>PDF öffnen ↗</span></a>` : `<span class="zw">${esc(zweck)}</span>`;
+  const pdfBtn = f.pdfUrl ? `<a class="pdfbtn" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${f.row}">PDF öffnen ↗</a>` : '';
+  const link = `<div class="zwrow"><button class="zw" data-copy="${esc(f.nr)}" title="Klicken kopiert die Rechnungsnummer ${esc(f.nr)} in die Zwischenablage">${esc(zweck)}</button>${pdfBtn}</div>`;
   return `<div class="row ${f.paid ? 'done' : ''}"><input type="checkbox" data-k="${f.row}" ${f.paid ? 'checked' : ''} ${lock ? 'disabled title="Schon abgelegt. Änderungen bitte in der Excel."' : ''} aria-label="${esc(zweck)} als bezahlt markieren">
     <div class="dt ${f.paid ? 'done' : b}">${WD[d.getDay()]}<b>${ds(d)}</b></div>
     <div><div class="zl">Zahlungszweck</div>${link}<div class="nr">${bike}</div><div class="chips">${chips.join('')}</div></div>
@@ -238,7 +241,7 @@ function render() {
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
     <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    <p class="note">${noDate ? noDate + ' offene Rate(n) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist Rechnungsnummer und Rate, so wie Megamo ihn in den Erinnerungen schreibt. Alle Beträge in EUR. Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">${noDate ? noDate + ' offene Rate(n) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist Rechnungsnummer und Rate, so wie Megamo ihn in den Erinnerungen schreibt. Ein Klick auf den Zahlungszweck kopiert die Rechnungsnummer (ohne Rate) in die Zwischenablage, damit du sie in der Excel suchen kannst. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in EUR. Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 // ---------- Haken setzen (schreibt in die Excel: Spalte J Status, Spalte M Bezahlt am) ----------
@@ -292,7 +295,20 @@ document.addEventListener('change', e => {
     else { e.target.checked = true; }
   }
 });
+async function copyText(t) {
+  let ok = false;
+  // 1. Weg: Zwischenablage-Schnittstelle des Browsers (mit Zeitlimit, damit nichts hängen bleibt)
+  try { await Promise.race([navigator.clipboard.writeText(t), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitlimit')), 1500))]); ok = true; } catch (e) {}
+  // 2. Weg: altes Verfahren über ein verstecktes Textfeld
+  if (!ok) {
+    const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e2) {} ta.remove();
+  }
+  if (!ok) { toast('Kopieren hat nicht geklappt. Nummer zum Abschreiben: ' + t, true); return; }
+  toast(`Rechnungsnummer ${t} kopiert ✓ (in Excel mit Strg+F suchen)`);
+}
 document.addEventListener('click', async e => {
+  const cp = e.target.closest('[data-copy]'); if (cp) { copyText(cp.dataset.copy); return; }
   const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
   const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(ALL.find(x => String(x.row) === p.dataset.pdf)); return; }
   if (e.target.id === 'reload') refresh(true);
