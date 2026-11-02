@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Raymon Rechnungslauf</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Nunito:wght@900&display=swap" rel="stylesheet">
+<style>
+  :root { --black:#000; --white:#fff; --text:#212529; --grey:#919aa1; --light:#f6f6f6; --line:#e4e4e4; --pink:#f5426f; --green:#1a9e55; --amber:#f5a623; }
+  * { box-sizing:border-box; }
+  html, body { overflow-x:hidden; }
+  body { margin:0; background:var(--light); color:var(--text); font-family:Jost,system-ui,sans-serif; font-weight:400; }
+  h1,h2,h3 { font-family:Nunito,sans-serif; font-weight:900; text-transform:uppercase; letter-spacing:.03em; margin:0; line-height:1.2; }
+  header { background:var(--black); } .bar { max-width:1200px; margin:0 auto; padding:22px 16px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .bar img { width:260px; max-width:60vw; display:block; } .bar .who { text-align:right; color:#cfcfcf; font-size:1.05rem; } .bar .who b { display:block; color:var(--white); font:900 2rem Nunito,sans-serif; letter-spacing:.06em; text-transform:uppercase; line-height:1.1; margin-bottom:4px; }
+  @media (max-width:640px){ .bar .who { text-align:left; } .bar .who b { font-size:1.5rem; } }
+  .bar .who a { color:#cfcfcf; cursor:pointer; text-decoration:underline; margin-left:10px; }
+  main { max-width:1200px; margin:0 auto; padding:18px 16px 60px; }
+  small { color:var(--grey); font-weight:400; }
+  button { font:inherit; }
+  .btn { all:unset; cursor:pointer; background:var(--black); color:var(--white); font:500 .75rem Jost,sans-serif; letter-spacing:1px; text-transform:uppercase; padding:11px 22px; }
+  .btn:hover { background:#656565; }
+
+  .test { background:var(--amber); color:#000; font-weight:600; padding:8px 16px; text-align:center; font-size:.9rem; }
+  .login, .msg { background:var(--white); border-top:6px solid var(--black); max-width:520px; margin:40px auto; padding:28px 24px; text-align:center; }
+  .login p, .msg p { margin:12px 0 20px; }
+  .msg.err { border-top-color:var(--pink); }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--black); color:var(--white); padding:12px 18px; max-width:90vw; font-weight:500; display:none; z-index:10; border-left:6px solid var(--green); }
+  #toast.err { border-left-color:var(--pink); }
+
+  .tools { display:flex; gap:10px 18px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .tabs { display:flex; flex-wrap:wrap; } .tabs button { all:unset; cursor:pointer; padding:9px 16px; background:var(--white); border:1px solid var(--line); font:900 .8rem Nunito,sans-serif; letter-spacing:.05em; text-transform:uppercase; }
+  .tabs button.on { background:var(--black); color:var(--white); border-color:var(--black); }
+  .prog { margin-left:auto; display:flex; gap:10px; align-items:center; font-size:.9rem; font-weight:500; }
+  .prog .pb { width:140px; height:10px; background:var(--line); } .prog .pb div { height:100%; background:var(--green); }
+
+  .tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
+  .tiles.four { grid-template-columns:repeat(4,1fr); }
+  .tile { all:unset; cursor:pointer; background:var(--white); border-top:6px solid var(--black); padding:14px 16px; display:flex; flex-direction:column; gap:3px; box-sizing:border-box; }
+  .tile.od { border-top-color:var(--pink); } .tile.w0 { border-top-color:var(--amber); } .tile.later { border-top-color:var(--grey); } .tile.done { border-top-color:var(--green); }
+  .tile.on { outline:3px solid var(--black); outline-offset:-3px; }
+  .tile .n { font:900 2.4rem Nunito,sans-serif; line-height:1; } .tile.od .n { color:var(--pink); } .tile.zero .n { color:var(--green); }
+  .tile .t { font:900 .85rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.05em; } .tile .s { font-size:.8rem; color:var(--grey); }
+  .strip { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:8px; }
+  .strip i { height:22px; background:var(--light); font:600 .62rem Jost; font-style:normal; display:flex; align-items:center; justify-content:center; color:var(--grey); }
+  .strip i.has { background:var(--black); color:var(--white); } .strip i.has.od { background:var(--pink); } .strip i.has.w0 { background:var(--amber); color:#000; }
+  .strip i.today { outline:2px solid var(--black); outline-offset:-2px; } .strip i.past { opacity:.5; }
+  @media (max-width:980px){ .tiles{grid-template-columns:1fr 1fr 1fr;} .tiles.four{grid-template-columns:1fr 1fr;} } @media (max-width:640px){ .tiles{grid-template-columns:1fr 1fr;} }
+
+  .blk { background:var(--white); margin-bottom:14px; border-top:6px solid var(--black); }
+  .blk.od { border-top-color:var(--pink); } .blk.w0 { border-top-color:var(--amber); } .blk.later { border-top-color:var(--grey); } .blk.done { border-top-color:var(--green); }
+  .dayh { padding:8px 16px 4px; font:900 .78rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.06em; background:var(--light); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .dayh.od { color:var(--pink); }
+  .nothing { padding:16px; color:var(--green); font-weight:600; display:flex; gap:8px; align-items:center; } .nothing::before { content:"✓"; font-size:1.3rem; }
+  .row { display:grid; grid-template-columns:34px 64px 1fr auto; gap:12px; align-items:center; padding:12px 16px; border-top:1px solid var(--line); }
+  .row.done { opacity:.6; } .row.done .zw { text-decoration:line-through; }
+  .row input { width:26px; height:26px; accent-color:var(--green); cursor:pointer; } .row input:disabled { cursor:default; }
+  .busy .row input, .busy .tile, .busy .tabs button { pointer-events:none; } .busy { opacity:.6; transition:opacity .2s; }
+  .dt { text-align:center; background:var(--light); padding:5px 0; line-height:1.05; font-size:.7rem; text-transform:uppercase; letter-spacing:1px; font-weight:600; }
+  .dt b { display:block; font:900 1.05rem Nunito,sans-serif; letter-spacing:0; }
+  .dt.od { background:var(--pink); color:var(--white); } .dt.w0 { background:var(--amber); } .dt.w1, .dt.later { background:var(--black); color:var(--white); } .dt.done { background:var(--green); color:var(--white); }
+  .zl { font-size:.62rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--grey); font-weight:600; }
+  .zwrow { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .zw { all:unset; cursor:copy; font:900 1.45rem Nunito,sans-serif; letter-spacing:.02em; color:var(--text); line-height:1.15; border-bottom:2px dotted var(--grey); }
+  .zw:hover, .zw:focus-visible { color:var(--pink); border-bottom-color:var(--pink); }
+  .pdfbtn { background:var(--black); color:var(--white); font:500 .68rem Jost; letter-spacing:1px; padding:6px 12px; white-space:nowrap; text-transform:uppercase; text-decoration:none; } .pdfbtn:hover { background:#656565; }
+  .nr { font-size:.82rem; color:var(--grey); margin-top:2px; }
+  .bem { font-size:.78rem; color:#8a5a00; margin-top:4px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .chip { font-size:.7rem; font-weight:600; padding:2px 8px; background:#e9f6ee; color:var(--green); } .chip.n { background:var(--light); color:var(--grey); } .chip.r { background:var(--black); color:var(--white); }
+  .chip.w { background:#fff1d6; color:#8a5a00; } .chip.p { background:#fde3ea; color:var(--pink); }
+  .amt { text-align:right; white-space:nowrap; } .amt b { font:900 1.35rem Nunito,sans-serif; display:block; }
+  .amt small { display:block; font-size:.82rem; font-weight:600; line-height:1.35; }
+  @media (max-width:560px){ .row{grid-template-columns:30px 54px 1fr;} .amt{grid-column:3; text-align:left;} .prog{margin-left:0;} .zw{font-size:1.2rem;} }
+  .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
+
+  /* Lieferstand */
+  .lrow { display:grid; grid-template-columns:34px 64px 1fr auto; gap:12px; align-items:center; padding:11px 16px; border-top:1px solid var(--line); }
+  .lrow .st { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; color:var(--white); background:var(--grey); font-size:.85rem; }
+  .lrow .st.g { background:var(--green); } .lrow .st.u { background:var(--pink); } .lrow .st.o { background:var(--grey); }
+  .lrow .mod { font:900 1.1rem Nunito,sans-serif; letter-spacing:.02em; line-height:1.2; }
+  .lrow .mod small { font:400 .85rem Jost; }
+  .lrow.g { background:#fbfefc; }
+  .lrow .ek { text-align:right; white-space:nowrap; font-size:.8rem; color:var(--grey); } .lrow .ek b { display:block; font:900 1.05rem Nunito,sans-serif; color:var(--text); }
+  @media (max-width:560px){ .lrow{grid-template-columns:30px 54px 1fr;} .lrow .ek{grid-column:3; text-align:left;} }
+  .lf { background:var(--white); margin-bottom:16px; border-top:6px solid var(--black); }
+  .lf table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  .lf th { text-align:left; font:900 .72rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.05em; color:var(--grey); padding:8px 16px 4px; }
+  .lf td { padding:8px 16px; border-top:1px solid var(--line); vertical-align:middle; }
+  .lf td.num, .lf th.num { text-align:right; white-space:nowrap; }
+  .sbar { display:flex; height:12px; background:var(--line); min-width:140px; } .sbar i { display:block; height:100%; } .sbar .g { background:var(--green); } .sbar .u { background:var(--pink); } .sbar .o { background:#c7ccd0; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:.8rem; color:var(--grey); padding:8px 16px 12px; } .legend span::before { content:""; display:inline-block; width:10px; height:10px; margin-right:6px; vertical-align:-1px; } .legend .g::before{background:var(--green)} .legend .u::before{background:var(--pink)} .legend .o::before{background:#c7ccd0}
+  .search { font:inherit; padding:9px 12px; border:1px solid var(--line); min-width:220px; background:var(--white); }
+  @media (max-width:640px){ .lf td:nth-child(n+4), .lf th:nth-child(n+4) { display:none; } }
+</style>
+</head>
+<body>
+<header><div class="bar"><img src="../assets/logo-weiss.svg" alt="Cycle Village"><div class="who"><b>Raymon Rechnungslauf</b><span id="who"></span></div></div></header>
+<div class="test" id="testbar" hidden>TESTMODUS: Haken werden nur in die Testkopie der Excel geschrieben.</div>
+<main id="app"></main>
+<div id="toast"></div>
+
+<script src="../msal-browser.min.js"></script>
+<script>
+// ---------- Einstellungen ----------
+const CFG = {
+  clientId: 'f23eab95-411d-47af-a700-457f3a940d94',
+  tenant: 'b7d31561-b430-4c3f-9b4b-91457c335ef2',
+  redirect: 'https://huberfra-boop.github.io/rechnungslauf/raymon/',
+  driveId: 'b!0V55JLKX2UGsjdZOFwNIaMlep2OJiuNDuJjkfeSD9FAUS2WMGsfPRIBSop3mFXCP',
+  basis: '02_Finanzen/Buchhaltung/03_Raymon_Rechnungen',          // Ablage: PDFs liegen relativ dazu (Spalte «Dateiname»)
+  excelOrdner: '02_Finanzen/Buchhaltung/03_Raymon_Rechnungen/00_Auswertung',
+  dateien: { echt: 'Raymon_Rechnungen.xlsx', test: 'Raymon_Rechnungen_TEST.xlsx' },
+  standard: 'test',            // 'test' = Testkopie, 'echt' = Produktiv-Excel (erst nach Freigabe von Franz umstellen). Testen jederzeit mit ?datei=test, echt mit ?datei=echt
+  blatt: 'Zahlungen',
+  blattBikes: 'Rückstände',
+  spBase: 'https://cyclevillage.sharepoint.com/sites/CYCLEVILLAGEAG/Freigegebene%20Dokumente/',
+  scopes: ['Files.ReadWrite.All', 'User.Read'],
+  erledigtTage: 14             // bezahlte Rechnungen bleiben so lange unter «Erledigt» sichtbar
+};
+// Blatt «Zahlungen»: A Rechnungsnummer, B Rechnungsdatum, C Beschreibung Bike, D Code Bike, E Rahmennummer, F Rechnungsbetrag (Total), G Transportkosten,
+// H Zahlungstermin, I Teilbetrag, J Status, K Bezahlt am, L Bemerkung, M Dateiname, N Fällig lt. Rechnung, O Zahlungsbedingung lt. Rechnung, ... T Anzahl Bikes, X Art
+const qp = new URLSearchParams(location.search);
+const DEMO = qp.get('demo') === '1';
+const modus = CFG.dateien[qp.get('datei')] ? qp.get('datei') : CFG.standard;
+const FILE = `/drives/${CFG.driveId}/root:/${CFG.excelOrdner.split('/').concat(CFG.dateien[modus]).map(encodeURIComponent).join('/')}:`;
+let WBS = null; // Microsoft verlangt für die Excel-Schnittstelle die Datei-ID, ein Pfad genügt nicht
+async function wbs() {
+  if (!WBS) { const it = await graph('GET', FILE.slice(0, -1) + '?$select=id'); WBS = `/drives/${CFG.driveId}/items/${it.id}/workbook/worksheets`; }
+  return WBS;
+}
+async function sheet(name) { return `${await wbs()}('${encodeURIComponent(name || CFG.blatt)}')`; }
+document.getElementById('testbar').hidden = !(modus === 'test' || DEMO);
+if (DEMO) document.getElementById('testbar').textContent = 'DEMO: Beispieldaten, es wird nichts gespeichert.';
+
+// ---------- Hilfsfunktionen ----------
+const chfF = n => Number(n).toLocaleString('de-CH', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' CHF';
+const chfK = n => Number(n).toLocaleString('de-CH', {minimumFractionDigits:2, maximumFractionDigits:2});
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'], WDL = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'], WD7 = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+const hp = qp.get('heute'); // Testdatum, z. B. ?heute=2026-11-12
+const today = hp ? new Date(hp + 'T00:00:00') : new Date(); today.setHours(0,0,0,0);
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const ds = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.`;
+const dsFull = d => ds(d) + d.getFullYear();
+const serial2date = s => (typeof s === 'number' && s > 0) ? new Date(1899, 11, 30 + Math.floor(s)) : null;
+const date2serial = d => Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 864e5);
+const mon0 = addDays(today, -((today.getDay()+6)%7));
+const kwNr = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate()+4-n); return Math.ceil(((t - Date.UTC(t.getUTCFullYear(),0,1))/864e5+1)/7); };
+const weekIdx = d => Math.floor((d - mon0) / (7*864e5));
+const range = w => `${ds(addDays(mon0, w*7))}–${ds(addDays(mon0, w*7+6))}`;
+const app = document.getElementById('app');
+let toastT;
+function toast(text, err) { const t = document.getElementById('toast'); t.textContent = text; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', err ? 9000 : 3500); }
+const showMsg = (title, text, err, btn) => { app.innerHTML = `<div class="msg ${err ? 'err' : ''}"><h2>${esc(title)}</h2><p>${esc(text)}</p>${btn ? `<button class="btn" id="msgbtn">${esc(btn)}</button>` : ''}</div>`; };
+
+// ---------- Anmeldung und Microsoft Graph ----------
+let pca, account = null;
+async function token() {
+  try { return (await pca.acquireTokenSilent({ scopes: CFG.scopes, account })).accessToken; }
+  catch (e) { await pca.acquireTokenRedirect({ scopes: CFG.scopes, account }); throw e; }
+}
+async function graph(method, path, body, raw) {
+  const tk = await token();
+  const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
+    method, headers: { Authorization: 'Bearer ' + tk,...(body ? {'Content-Type': 'application/json'} : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) {
+    let m = ''; try { m = (await r.json()).error?.message || ''; } catch(e) {}
+    const err = new Error(r.status === 423 ? 'Die Excel ist gerade gesperrt. Bitte in einer Minute nochmals versuchen.' : r.status === 404 ? 'Die Excel-Datei wurde nicht gefunden (' + CFG.dateien[modus] + '). Technisch: ' + m : r.status === 403 ? 'Kein Zugriff auf die Excel. Technisch: ' + m : 'Fehler bei Microsoft (' + r.status + '): ' + m);
+    err.status = r.status; throw err;
+  }
+  return raw ? r : (r.status === 204 ? null : r.json());
+}
+
+// ---------- Daten ----------
+let ALL = [], INV = [], BIKES = [], bikesErr = null, noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
+let vw = 'rechnungen', lf = 'alle', q = '';
+// Demo: erfundene Beispieldaten (keine echten Rechnungen). Die echte Seite liest alles aus der Excel.
+const demoRows = () => { const d = n => addDays(today, n); let n = 0;
+  const o = (nr, betrag, tage, art, extra) => ({ row: 100 + n++, nr, betrag, total: betrag, faellig: d(tage), faelligSer: 0, status: 'offen', bezahltAm: null, rechnungsdatum: d(tage - 120), bike: 'Beispiel-Bike Comp 29" M; Beispiel-Bike Pro 27.5" S', anz: 2, art, bem: '', faelligRg: null, bedingung: '', ablage: '01_Pendente_Rechnungen\\2026\\x.pdf', ...extra });
+  return [o('26.40000001', 2444.10, -2, 'Vorordner', {bem:'Rechnung lt. Raymon falsch (Beispiel). Korrigierte Rechnung anfordern.', faelligRg: d(-40), bedingung:'10 Tage 1% Skonto / 30 Tage netto'}), o('26.40000002', 10967.00, 1, 'Vorordner'), o('26.40000003', 370.00, 3, 'Lager', {anz:1}),
+    o('26.40000004', 1224.68, 6, 'Vorordner', {anz:1}), o('26.40000005', 1868.35, 12, 'Vorordner'), o('26.40000006', 4095.03, 30, 'Vorordner'),
+    o('26.40000007', 652.11, -20, 'Lager', {status:'bezahlt', bezahltAm:d(-3), anz:1})]; };
+const demoBikes = () => { const d = n => addDays(today, n); const b = (fenster, termin, modell, bez, farbe, gr, art, gel, off, ek, re, kd) => ({ fenster, termin, modell, bez, farbe, gr, artnr: art, gel, off, ek, rechnung: re || '', kunde: kd || '', notiz: '', kat: '' });
+  return [b('MY27_SEP./OKT.', d(-45), 'Beispiel Comp', 'Beispiel Comp 29" x M', 'black', 'M', '1000000001', 1, 0, 361.36, '26.40000002'), b('MY27_SEP./OKT.', d(-45), 'Beispiel Pro', 'Beispiel Pro 27.5" x S', 'white', 'S', '1000000002', 1, 0, 965.87, '26.40000004'),
+    b('MY27_SEP./OKT.', d(-40), 'Beispiel Comp', 'Beispiel Comp 27.5" x S', 'lilac', 'S', '1000000003', 0, 2, 361.36), b('MY27_NOV./DEZ.', d(-1), 'Beispiel Trail', 'Beispiel Trail 29" x L', 'carbon', 'L', '1000000004', 0, 1, 3374.52, '', 'Kunde Muster'),
+    b('MY27_JAN./FEB.', d(60), 'Beispiel Trail', 'Beispiel Trail 29" x M', 'silver', 'M', '1000000005', 0, 3, 3374.52), b('MY27_MÄRZ/APR.', d(120), 'Beispiel Road', 'Beispiel Road 700 x 54', 'blue', '54', '1000000006', 0, 2, 1299.93)]; };
+
+function build(raw) { noDate = 0; return raw.map(f => ({ ...f, paid: f.status === 'bezahlt',
+  undoOk: /^01_Pendente/i.test(f.ablage || ''),
+  pdfUrl: f.ablage ? CFG.spBase + (CFG.basis + '/' + f.ablage.replace(/\\/g, '/')).split('/').map(encodeURIComponent).join('/') : null })); }
+
+function buildBikes(values) {
+  const h = values[0].map(x => String(x ?? '').trim()), ix = n => h.indexOf(n), out = [];
+  const iFen = ix('Lieferfenster'), iTer = ix('Liefertermin / Lieferdatum'), iKat = ix('Kategorie'), iMod = ix('Modell'), iBez = ix('Bezeichnung'), iFar = ix('Farbe / Ausstattung'), iGr = ix('Grösse'),
+    iArt = ix('Artikelnummer'), iOff = ix('Offene Menge'), iGel = ix('Gelieferte Menge'), iEk = ix('EK total pro Stk. (CHF)'), iRe = ix('Rechnungsnummer'), iKd = ix('Kundenreservierung'), iNo = ix('Notizen');
+  if (iFen < 0 || iOff < 0 || iGel < 0) throw new Error('Blatt «' + CFG.blattBikes + '»: Spalten nicht gefunden.');
+  values.slice(1).forEach(v => {
+    const fen = String(v[iFen] ?? '').trim(), st = String(v[0] ?? '').trim(); if (!fen || st === 'Total') return;
+    const off = Number(v[iOff]) || 0, gel = Number(v[iGel]) || 0; if (!off && !gel) return;
+    out.push({ fenster: fen, termin: serial2date(v[iTer]), kat: String(v[iKat] ?? ''), modell: String(v[iMod] ?? ''), bez: String(v[iBez] ?? ''), farbe: String(v[iFar] ?? ''), gr: String(v[iGr] ?? ''), artnr: String(v[iArt] ?? ''),
+      off, gel, ek: Number(v[iEk]) || 0, rechnung: String(v[iRe] ?? '').trim(), kunde: String(v[iKd] ?? '').trim(), notiz: String(v[iNo] ?? '').trim() });
+  });
+  return out;
+}
+
+async function load() {
+  let raw, bikeRaw = null;
+  if (DEMO) { raw = demoRows(); bikeRaw = demoBikes(); }
+  else {
+    const r = await graph('GET', `${await sheet()}/usedRange?$select=values,rowIndex`);
+    const all = [];
+    r.values.forEach((v, i) => {
+      const row = r.rowIndex + i + 1;
+      if (row < 2 || !String(v[0] ?? '').trim()) return;
+      const bem = String(v[11] ?? '');
+      if (/ignorieren/i.test(bem)) return;                      // z. B. falsche oder nie gelieferte Rechnungen: nie anzeigen
+      all.push({ row, nr: String(v[0]).trim(), rechnungsdatum: serial2date(v[1]), bike: String(v[2] ?? ''), total: Number(v[5]) || 0, faellig: serial2date(v[7]), faelligSer: Number(v[7]),
+        betrag: Number(v[8]) || 0, status: String(v[9] ?? '').trim().toLowerCase(), bezahltAm: serial2date(v[10]), bem: bem.trim(), ablage: String(v[12] ?? ''),
+        faelligRg: serial2date(v[13]), bedingung: String(v[14] ?? '').trim(), anz: Number(v[19]) || 0, art: String(v[23] ?? '').trim() });
+    });
+    raw = all;
+    try { const b = await graph('GET', `${await sheet(CFG.blattBikes)}/usedRange?$select=values`); bikeRaw = buildBikes(b.values); bikesErr = null; }
+    catch (e) { bikesErr = e.message; bikeRaw = []; }
+  }
+  INV = build(raw);
+  ALL = INV.filter(f => {
+    if (f.status === 'offen' && !f.faellig) { noDate++; return false; }
+    if (f.status === 'offen') return true;
+    return f.status === 'bezahlt' && f.bezahltAm && f.bezahltAm >= addDays(today, -CFG.erledigtTage);
+  }).map(f => ({ ...f, faellig: f.faellig || f.bezahltAm }));
+  BIKES = bikeRaw.flatMap(b => {
+    const l = [];
+    if (b.gel > 0) l.push({ ...b, menge: b.gel, s: 'g' });
+    if (b.off > 0) l.push({ ...b, menge: b.off, s: b.termin && b.termin < today ? 'u' : 'o' });
+    return l;
+  });
+  loadedAt = new Date();
+}
+
+const eff = f => f.faellig;
+const sumOf = l => l.reduce((a, f) => a + f.betrag, 0);
+const bucket = f => { const d = eff(f); if (d < today) return 'od'; const w = weekIdx(d); return w <= 0 ? 'w0' : w === 1 ? 'w1' : 'later'; };
+const sortEff = l => [...l].sort((a, b) => eff(a) - eff(b) || a.nr.localeCompare(b.nr));
+
+function row(f, b) {
+  const chips = [];
+  if (f.art) chips.push(`<span class="chip r">${esc(f.art)}</span>`);
+  if (f.anz) chips.push(`<span class="chip n">${f.anz} Bike${f.anz > 1 ? 's' : ''}</span>`);
+  if (f.paid && f.bezahltAm) chips.push(`<span class="chip n">bezahlt am ${dsFull(f.bezahltAm)}</span>`);
+  if (f.rechnungsdatum) chips.push(`<span class="chip n">Rechnung vom ${dsFull(f.rechnungsdatum)}</span>`);
+  if (f.faelligRg && f.faellig && f.faelligRg.getTime() !== f.faellig.getTime()) chips.push(`<span class="chip w" title="Raymon hat auf der Rechnung eine andere Zahlungsbedingung geschrieben. Hier gilt die Vereinbarung (120 Tage).">Rechnung nennt ${dsFull(f.faelligRg)}${f.bedingung ? ' (' + esc(f.bedingung) + ')' : ''}</span>`);
+  const bike = f.bike ? esc(f.bike.length > 110 ? f.bike.slice(0, 107) + '…' : f.bike) : '';
+  const bem = f.bem ? `<div class="bem" title="${esc(f.bem)}">${esc(f.bem)}</div>` : '';
+  const lock = f.paid && !f.undoOk, d = eff(f);
+  const pdfBtn = f.pdfUrl ? `<a class="pdfbtn" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${f.row}">PDF öffnen ↗</a>` : '';
+  const link = `<div class="zwrow"><button class="zw" data-copy="${esc(f.nr)}" title="Klicken kopiert die Rechnungsnummer ${esc(f.nr)} in die Zwischenablage">${esc(f.nr)}</button>${pdfBtn}</div>`;
+  return `<div class="row ${f.paid ? 'done' : ''}"><input type="checkbox" data-k="${f.row}" ${f.paid ? 'checked' : ''} ${lock ? 'disabled title="Schon abgelegt. Änderungen bitte in der Excel."' : ''} aria-label="${esc(f.nr)} als bezahlt markieren">
+    <div class="dt ${f.paid ? 'done' : b}">${WD[d.getDay()]}<b>${ds(d)}</b></div>
+    <div><div class="zl">Zahlungszweck</div>${link}<div class="nr">${bike}</div><div class="chips">${chips.join('')}</div>${bem}</div>
+    <div class="amt"><b>${chfF(f.betrag)}</b></div></div>`;
+}
+function byDay(list, tone) {
+  if (!list.length) return '<div class="nothing">Nichts fällig</div>';
+  const days = [...new Set(sortEff(list).map(f => eff(f).toDateString()))];
+  return days.map(k => { const d = new Date(k), l = sortEff(list).filter(f => eff(f).toDateString() === k);
+    return `<div class="dayh ${d < today && !tone ? 'od' : ''}"><span>${WDL[d.getDay()]}, ${ds(d)}${d < today && !tone ? ' · überfällig' : ''}</span><span>${chfF(sumOf(l))}</span></div>${l.map(f => row(f, tone || bucket(f))).join('')}`; }).join('');
+}
+function byKW(list) {
+  if (!list.length) return '<div class="nothing">Nichts fällig</div>';
+  const ws = [...new Set(list.map(f => weekIdx(eff(f))))].sort((a, b) => a - b);
+  return ws.map(w => { const l = list.filter(f => weekIdx(eff(f)) === w);
+    return `<div class="dayh"><span>KW ${kwNr(addDays(mon0, w*7))} · ${range(w)}</span><span>${chfF(sumOf(l))}</span></div>${sortEff(l).map(f => row(f, 'later')).join('')}`; }).join('');
+}
+function strip(w, list) {
+  return `<div class="strip">${[...Array(7)].map((_, i) => { const d = addDays(mon0, w*7 + i), n = list.filter(f => eff(f).getTime() === d.getTime()).length, od = n && d < today;
+    return `<i class="${n ? 'has' : ''} ${od ? 'od' : w === 0 ? 'w0' : ''} ${d.getTime() === today.getTime() ? 'today' : ''} ${d < today ? 'past' : ''}" title="${WDL[d.getDay()]} ${ds(d)}">${n || WD7[i][0]}</i>`; }).join('')}</div>`;
+}
+
+// ---------- Ansicht «Rechnungen» ----------
+function viewRechnungen() {
+  const open = ALL.filter(f => !f.paid), done = ALL.filter(f => f.paid);
+  const g = { od: open.filter(f => bucket(f) === 'od'), w0: open.filter(f => bucket(f) === 'w0'), w1: open.filter(f => bucket(f) === 'w1'), later: open.filter(f => bucket(f) === 'later'), done };
+  g.jetzt = [...g.od, ...g.w0, ...g.w1];
+  const defs = [['od','Überfällig',''],['w0','Diese Woche',range(0)],['w1','Nächste Woche',range(1)],['later','Später','ab ' + ds(addDays(mon0,14))],['done','Erledigt','letzte ' + CFG.erledigtTage + ' Tage']];
+  const tiles = defs.map(([k,t,s]) => `<button class="tile ${k} ${g[k].length || k === 'done' ? '' : 'zero'} ${sel === k ? 'on' : ''}" data-s="${k}">
+    <span class="n">${g[k].length || (k === 'done' ? '0' : '✓')}</span><span class="t">${t}</span>
+    <span class="s">${k === 'done' ? (g[k].length ? chfF(sumOf(g[k])) : 'noch nichts') : g[k].length ? chfF(sumOf(g[k])) : 'nichts fällig'}</span>${(k === 'w0' || k === 'w1') ? strip(k === 'w0' ? 0 : 1, g[k]) : ''}${s ? `<span class="s">${s}</span>` : ''}</button>`).join('');
+  const tot = ALL.length, n = done.length;
+  return `<div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
+    <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
+    <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
+    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist die Rechnungsnummer. Ein Klick darauf kopiert sie in die Zwischenablage. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in CHF, inkl. MwSt. Bei Vorordner-Rechnungen gilt der vereinbarte Zahlungstermin (Rechnungsdatum + 120 Tage), auch wenn Raymon etwas anderes auf die Rechnung geschrieben hat (gelber Hinweis). Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+}
+
+// ---------- Ansicht «Lieferstand» ----------
+const stk = l => l.reduce((a, b) => a + b.menge, 0), wert = l => l.reduce((a, b) => a + b.menge * b.ek, 0);
+const fenOrder = () => [...new Set(BIKES.map(b => b.fenster))].sort((a, b) => { const ta = Math.min(...BIKES.filter(x => x.fenster === a && x.termin).map(x => +x.termin)), tb = Math.min(...BIKES.filter(x => x.fenster === b && x.termin).map(x => +x.termin)); const ka = /^ohne/i.test(a) ? 9e15 : (isFinite(ta) ? ta : 8e15), kb = /^ohne/i.test(b) ? 9e15 : (isFinite(tb) ? tb : 8e15); return ka - kb; });
+function lieferListe() {
+  const ql = q.trim().toLowerCase();
+  const f = BIKES.filter(b => (lf === 'alle' || (lf === 'g' && b.s === 'g') || (lf === 'o' && b.s !== 'g') || (lf === 'u' && b.s === 'u'))
+    && (!ql || [b.modell, b.bez, b.farbe, b.gr, b.artnr, b.rechnung, b.kunde, b.fenster].join(' ').toLowerCase().includes(ql)));
+  if (!f.length) return '<div class="nothing">Nichts gefunden</div>';
+  const ord = { u: 0, o: 1, g: 2 };
+  return fenOrder().map(fen => { const l = f.filter(b => b.fenster === fen).sort((a, b) => ord[a.s] - ord[b.s] || a.modell.localeCompare(b.modell) || a.bez.localeCompare(b.bez)); if (!l.length) return '';
+    const all = BIKES.filter(b => b.fenster === fen);
+    return `<div class="dayh"><span>${esc(fen)}</span><span>${stk(all.filter(b => b.s === 'g'))} geliefert · ${stk(all.filter(b => b.s !== 'g'))} offen</span></div>` + l.map(b => {
+      const inv = b.rechnung ? INV.find(x => x.nr === b.rechnung) : null;
+      const chips = [];
+      if (b.s === 'g') chips.push(`<span class="chip">Rechnung ${esc(b.rechnung || 'fehlt')}</span>`); else if (b.s === 'u') chips.push(`<span class="chip p">${Math.round((today - b.termin) / 864e5)} Tage über dem Liefertermin</span>`);
+      if (b.kunde) chips.push(`<span class="chip r">Kunde: ${esc(b.kunde)}</span>`);
+      if (b.kat) chips.push(`<span class="chip n">${esc(b.kat)}</span>`);
+      if (b.notiz) chips.push(`<span class="chip w">${esc(b.notiz)}</span>`);
+      const pdf = inv && inv.pdfUrl ? `<a class="pdfbtn" href="${esc(inv.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${inv.row}">Rechnung ↗</a>` : '';
+      const box = b.termin ? `${WD[b.termin.getDay()]}<b>${ds(b.termin)}</b>` : '–';
+      return `<div class="lrow ${b.s}"><span class="st ${b.s}" title="${b.s === 'g' ? 'geliefert' : b.s === 'u' ? 'Liefertermin überschritten' : 'offen'}">${b.s === 'g' ? '✓' : b.s === 'u' ? '!' : '·'}</span>
+        <div class="dt ${b.s === 'g' ? 'done' : b.s === 'u' ? 'od' : 'later'}" title="${b.s === 'g' ? 'Lieferdatum' : 'Liefertermin'}">${box}</div>
+        <div><div class="mod">${b.menge > 1 ? b.menge + '× ' : ''}${esc(b.bez || b.modell)} <small>${esc([b.farbe, b.gr && b.gr !== '–' ? 'Grösse ' + b.gr : ''].filter(Boolean).join(' · '))}</small></div>
+          <div class="nr">Art.-Nr. ${esc(b.artnr)}</div><div class="chips">${chips.join('')}${pdf}</div></div>
+        <div class="ek"><b>${chfK(b.ek * b.menge)}</b>EK netto inkl. Fracht</div></div>`; }).join(''); }).join('');
+}
+function viewLiefer() {
+  if (bikesErr) return `<div class="msg err"><h2>Lieferstand nicht lesbar</h2><p>${esc(bikesErr)}</p></div>`;
+  const G = BIKES.filter(b => b.s === 'g'), O = BIKES.filter(b => b.s !== 'g'), U = BIKES.filter(b => b.s === 'u');
+  const fens = fenOrder();
+  const tbl = fens.map(fen => { const l = BIKES.filter(b => b.fenster === fen), g = stk(l.filter(b => b.s === 'g')), u = stk(l.filter(b => b.s === 'u')), o = stk(l.filter(b => b.s === 'o')), t = g + u + o;
+    return `<tr><td><b>${esc(fen)}</b></td><td style="width:34%"><div class="sbar"><i class="g" style="width:${g/t*100}%"></i><i class="u" style="width:${u/t*100}%"></i><i class="o" style="width:${o/t*100}%"></i></div></td>
+      <td class="num">${g}</td><td class="num">${u + o}</td><td class="num">${t}</td><td class="num">${chfK(wert(l.filter(b => b.s !== 'g')))}</td></tr>`; }).join('');
+  const tile = (cls, n, t, s) => `<div class="tile ${cls}" style="cursor:default"><span class="n">${n}</span><span class="t">${t}</span><span class="s">${s}</span></div>`;
+  return `<div class="tiles four">${tile('', stk(BIKES), 'Bestellt', 'Stück Vorordner (Wert EK ' + chfK(wert(BIKES)) + ')')}${tile('done', stk(G), 'Geliefert', 'Rechnung erhalten · EK ' + chfK(wert(G)))}
+      ${tile('later', stk(O), 'Noch offen', 'EK ' + chfK(wert(O)))}${tile('od', stk(U), 'Termin überschritten', 'EK ' + chfK(wert(U)))}</div>
+    <div class="lf"><table><thead><tr><th>Lieferfenster</th><th></th><th class="num">geliefert</th><th class="num">offen</th><th class="num">Stück</th><th class="num">offener Wert EK</th></tr></thead><tbody>${tbl}</tbody></table>
+      <div class="legend"><span class="g">geliefert (Rechnung da)</span><span class="u">Liefertermin überschritten</span><span class="o">noch nicht fällig</span></div></div>
+    <div class="tools"><div class="tabs">${[['alle','Alle'],['g','Geliefert'],['o','Noch offen'],['u','Termin überschritten']].map(([k, t]) => `<button data-lf="${k}" class="${lf === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <input class="search" id="q" type="search" placeholder="Suchen: Modell, Farbe, Grösse …" value="${esc(q)}"></div>
+    <section class="blk" id="lfliste">${lieferListe()}</section>
+    <p class="note">Ein Bike gilt als geliefert, sobald die Rechnung von Raymon da ist (die Excel «Raymon_Rechnungen» wird bei jeder neuen Rechnung nachgeführt). Der Wert ist der Einkaufspreis netto inkl. Fracht/Entsorgung, ohne MwSt. «Termin überschritten» heisst: Der von Raymon genannte Liefertermin ist vorbei, das Bike ist aber noch nicht geliefert. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+}
+
+function render() {
+  const open = ALL.filter(f => !f.paid), tot = ALL.length, n = ALL.length - open.length;
+  app.innerHTML = `<div class="tools">
+      <div class="tabs"><button data-v="rechnungen" class="${vw === 'rechnungen' ? 'on' : ''}">Rechnungen</button><button data-v="liefer" class="${vw === 'liefer' ? 'on' : ''}">Lieferstand</button></div>
+      <button class="btn" id="reload">Aktualisieren</button>
+      ${vw === 'rechnungen' ? `<div class="prog"><span>${n} von ${tot} erledigt</span><div class="pb"><div style="width:${tot ? n/tot*100 : 0}%"></div></div></div>` : ''}
+    </div>${vw === 'rechnungen' ? viewRechnungen() : viewLiefer()}`;
+}
+
+// ---------- Haken setzen (schreibt in die Excel: Spalte J Status, Spalte K Bezahlt am) ----------
+async function setStatus(f, neu) {
+  if (busy) return; busy = true; render();
+  try {
+    if (!DEMO) {
+      const rg = `${await sheet()}/range(address='A${f.row}:M${f.row}')`;
+      const cur = (await graph('GET', rg + '?$select=values')).values[0];
+      if (String(cur[0]).trim() !== f.nr || Math.abs((Number(cur[8]) || 0) - f.betrag) > 0.005 || Number(cur[7]) !== f.faelligSer)
+        throw new Error('Die Zeile in der Excel hat sich verändert. Die Seite wird neu geladen, bitte nochmals versuchen.');
+      const erwartet = neu === 'bezahlt' ? 'offen' : 'bezahlt';
+      if (String(cur[9]).trim().toLowerCase() !== erwartet) throw new Error('Der Status dieser Rechnung wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
+      await graph('PATCH', `${await sheet()}/range(address='J${f.row}')`, { values: [[neu === 'bezahlt' ? 'Bezahlt' : 'Offen']] });
+      await graph('PATCH', `${await sheet()}/range(address='K${f.row}')`, { values: [[neu === 'bezahlt' ? date2serial(today) : '']] });
+      const chk = (await graph('GET', rg + '?$select=values')).values[0];
+      if (String(chk[9]).trim().toLowerCase() !== neu) throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
+      f.bezahltAm = neu === 'bezahlt' ? (serial2date(chk[10]) || today) : null;
+    } else f.bezahltAm = neu === 'bezahlt' ? today : null;
+    f.paid = neu === 'bezahlt'; f.status = neu;
+    toast(neu === 'bezahlt' ? `${f.nr}: als bezahlt gespeichert ✓` : `${f.nr}: wieder auf offen gesetzt`);
+  } catch (e) {
+    toast(e.message, true);
+    try { await load(); } catch (e2) {}
+  } finally { busy = false; render(); }
+}
+
+// ---------- PDF öffnen (funktioniert auch ohne SharePoint-Anmeldung im Browser) ----------
+async function openPdf(f) {
+  if (!f) return;
+  if (DEMO) { toast('Demo: Hier öffnet sich in der echten Seite die Originalrechnung (PDF) aus der Ablage. In der Demo gibt es keine echten Rechnungen.'); return; }
+  const w = window.open('', '_blank');
+  if (w) w.document.write('<p style="font:16px sans-serif;padding:20px">PDF wird geladen …</p>');
+  const fallback = () => { if (w) w.location = f.pdfUrl; else window.open(f.pdfUrl, '_blank'); };
+  try {
+    const p = `/drives/${CFG.driveId}/root:/${(CFG.basis + '/' + f.ablage.replace(/\\/g, '/')).split('/').map(encodeURIComponent).join('/')}`;
+    const it = await graph('GET', p + '?$select=@microsoft.graph.downloadUrl');
+    const buf = await (await fetch(it['@microsoft.graph.downloadUrl'])).arrayBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+    if (w) w.location = url; else window.open(url, '_blank');
+  } catch (e) { fallback(); }
+}
+
+// ---------- Ereignisse ----------
+document.addEventListener('change', e => {
+  if (e.target.matches('input[data-k]')) {
+    const f = ALL.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
+    if (e.target.checked) setStatus(f, 'bezahlt');
+    else if (confirm(`${f.nr} wieder auf «offen» setzen?`)) setStatus(f, 'offen');
+    else { e.target.checked = true; }
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { q = e.target.value; const l = document.getElementById('lfliste'); if (l) l.innerHTML = lieferListe(); }
+});
+async function copyText(t) {
+  let ok = false;
+  try { await Promise.race([navigator.clipboard.writeText(t), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitlimit')), 1500))]); ok = true; } catch (e) {}
+  if (!ok) {
+    const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e2) {} ta.remove();
+  }
+  if (!ok) { toast('Kopieren hat nicht geklappt. Nummer zum Abschreiben: ' + t, true); return; }
+  toast(`Rechnungsnummer ${t} kopiert ✓`);
+}
+document.addEventListener('click', async e => {
+  const cp = e.target.closest('[data-copy]'); if (cp) { copyText(cp.dataset.copy); return; }
+  const v = e.target.closest('[data-v]'); if (v) { vw = v.dataset.v; render(); return; }
+  const l = e.target.closest('[data-lf]'); if (l) { lf = l.dataset.lf; render(); return; }
+  const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
+  const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(INV.find(x => String(x.row) === p.dataset.pdf)); return; }
+  if (e.target.id === 'reload') refresh(true);
+  if (e.target.id === 'li') pca.loginRedirect({ scopes: CFG.scopes });
+  if (e.target.id === 'lo') pca.logoutRedirect({ account });
+  if (e.target.id === 'msgbtn') location.reload();
+});
+async function refresh(show) {
+  if (busy) return;
+  try { await load(); render(); if (show) toast('Aktualisiert'); }
+  catch (e) { toast(e.message, true); }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && loadedAt && Date.now() - loadedAt > 60000) refresh(); });
+setInterval(() => { if (!document.hidden && loadedAt && Date.now() - loadedAt > 300000 && document.activeElement?.id !== 'q') refresh(); }, 60000);
+
+// ---------- Start ----------
+(async function start() {
+  if (DEMO) { document.getElementById('who').textContent = 'Demo'; await load(); return render(); }
+  if (typeof window.msal === 'undefined') return showMsg('Fehler', 'Die Anmelde-Bibliothek konnte nicht geladen werden.', true, 'Neu laden');
+  pca = new window.msal.PublicClientApplication({ auth: { clientId: CFG.clientId, authority: 'https://login.microsoftonline.com/' + CFG.tenant, redirectUri: CFG.redirect }, cache: { cacheLocation: 'localStorage' } });
+  try {
+    await pca.initialize();
+    const res = await pca.handleRedirectPromise();
+    account = res?.account || pca.getAllAccounts()[0] || null;
+  } catch (e) { return showMsg('Anmeldung fehlgeschlagen', e.message, true, 'Neu laden'); }
+  if (!account) {
+    app.innerHTML = '<div class="login"><h2>Raymon Rechnungslauf</h2><p>Bitte mit dem Microsoft-Konto von Cycle Village anmelden.</p><button class="btn" id="li">Mit Microsoft anmelden</button></div>';
+    return;
+  }
+  document.getElementById('who').innerHTML = esc(account.name || account.username) + '<a id="lo">Abmelden</a>';
+  showMsg('Lade Rechnungen …', 'Einen Moment bitte.');
+  try { await load(); render(); }
+  catch (e) { showMsg('Rechnungen konnten nicht geladen werden', e.message, true, 'Neu laden'); }
+})();
+</script>
+</body>
+</html>
