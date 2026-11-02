@@ -69,6 +69,7 @@
   .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
   .chip { font-size:.7rem; font-weight:600; padding:2px 8px; background:#e9f6ee; color:var(--green); } .chip.n { background:var(--light); color:var(--grey); } .chip.r { background:var(--black); color:var(--white); }
   .amt { text-align:right; white-space:nowrap; } .amt b { font:900 1.35rem Nunito,sans-serif; display:block; }
+  .amt small { display:block; font-size:.82rem; font-weight:600; line-height:1.35; } .amt .chf { color:var(--text); } .amt .sp { color:var(--green); font-weight:500; font-size:.74rem; }
   @media (max-width:560px){ .row{grid-template-columns:30px 54px 1fr;} .amt{grid-column:3; text-align:left;} .prog{margin-left:0;} .zw{font-size:1.2rem;} }
   .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
 </style>
@@ -113,6 +114,7 @@ if (DEMO) document.getElementById('testbar').textContent = 'DEMO: Beispieldaten,
 
 // ---------- Hilfsfunktionen ----------
 const eur = n => Number(n).toLocaleString('de-CH', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+const chfF = n => Number(n).toLocaleString('de-CH', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' CHF';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'], WDL = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'], WD7 = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 const hp = qp.get('heute'); // Testdatum, z. B. ?heute=2026-11-12
@@ -152,7 +154,7 @@ async function graph(method, path, body, raw) {
 // ---------- Daten ----------
 let ALL = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
 const demoRows = () => { const d = n => addDays(today, n); let n = 0;
-  const o = (nr, rate, von, betrag, tage, extra) => ({ row: 100 + n++, nr, rate, von, betrag, total: betrag * von, faellig: d(tage), status: 'offen', bezahltAm: null, rechnungsdatum: d(tage - 30 * rate), bike: 'PULSE 05 CW - MARBLE WHITE M (27)', ablage: '01_Pendente_Rechnungen\\2026\\x.pdf', ...extra });
+  const o = (nr, rate, von, betrag, tage, extra) => ({ row: 100 + n++, nr, rate, von, betrag, chf: +(betrag * 0.9194).toFixed(2), spart: +(betrag - betrag * 0.9194).toFixed(2), total: betrag * von, faellig: d(tage), status: 'offen', bezahltAm: null, rechnungsdatum: d(tage - 30 * rate), bike: 'PULSE 05 CW - MARBLE WHITE M (27)', ablage: '01_Pendente_Rechnungen\\2026\\x.pdf', ...extra });
   return [o('B/26010328', 2, 4, 1976.32, -2), o('B/26010564', 2, 4, 729.75, 1), o('B/26010560', 2, 4, 825.74, 1, {bike:'RYAL 05 - WHITE M (27)'}), o('B/26007738', 4, 4, 446.70, 1), o('B/26009344', 3, 4, 1335.56, 3),
     o('B/26007843', 4, 4, 1626.87, 4), o('B/26012604', 2, 4, 2565.52, 7), o('B/26013577', 1, 4, 1136.45, 25), o('B/26013888', 1, 4, 1459.51, 28), o('B/26013888', 2, 4, 1459.51, 58),
     o('B/26009174', 2, 4, 825.74, -20, {status:'bezahlt', bezahltAm:d(0), ablage:'01_Pendente_Rechnungen\\2026\\x.pdf'}), o('B/26008974', 3, 4, 696.81, -5, {status:'bezahlt', bezahltAm:d(-3)})]; };
@@ -173,7 +175,7 @@ async function load() {
       const bem = String(v[11] ?? '');
       if (/ignorieren/i.test(bem)) return;                      // z. B. nie gelieferte oder falsche Rechnungen: nie anzeigen
       all.push({ row, nr: String(v[0]).trim(), rechnungsdatum: serial2date(v[1]), bike: String(v[2] ?? ''), total: Number(v[5]) || 0, faellig: serial2date(v[7]), faelligSer: Number(v[7]),
-        betrag: Number(v[8]) || 0, status: String(v[9] ?? '').trim().toLowerCase(), bezahltAm: serial2date(v[10]), ablage: String(v[12] ?? '') });
+        betrag: Number(v[8]) || 0, chf: Number(v[14]) || 0, spart: Number(v[15]) || 0, status: String(v[9] ?? '').trim().toLowerCase(), bezahltAm: serial2date(v[10]), ablage: String(v[12] ?? '') });
     });
     // Rate = Reihenfolge der Zahlungstermine innerhalb einer Rechnungsnummer (ohne ignorierte Zeilen)
     const gr = {}; all.forEach(f => (gr[f.nr] ||= []).push(f));
@@ -190,6 +192,7 @@ async function load() {
 
 const eff = f => f.faellig;
 const sumOf = l => l.reduce((a, f) => a + f.betrag, 0);
+const sumChfOf = l => l.reduce((a, f) => a + (f.chf || 0), 0);
 const bucket = f => { const d = eff(f); if (d < today) return 'od'; const w = weekIdx(d); return w <= 0 ? 'w0' : w === 1 ? 'w1' : 'later'; };
 const sortEff = l => [...l].sort((a, b) => eff(a) - eff(b) || a.nr.localeCompare(b.nr) || a.rate - b.rate);
 
@@ -206,19 +209,19 @@ function row(f, b) {
   return `<div class="row ${f.paid ? 'done' : ''}"><input type="checkbox" data-k="${f.row}" ${f.paid ? 'checked' : ''} ${lock ? 'disabled title="Schon abgelegt. Änderungen bitte in der Excel."' : ''} aria-label="${esc(zweck)} als bezahlt markieren">
     <div class="dt ${f.paid ? 'done' : b}">${WD[d.getDay()]}<b>${ds(d)}</b></div>
     <div><div class="zl">Zahlungszweck</div>${link}<div class="nr">${bike}</div><div class="chips">${chips.join('')}</div></div>
-    <div class="amt"><b>${eur(f.betrag)}</b></div></div>`;
+    <div class="amt"><b>${eur(f.betrag)}</b>${f.chf ? `<small class="chf" title="Umgerechnet mit dem Kurs vom Zahlungstag (bezahlt) bzw. dem Planungskurs (offen)">≈ ${chfF(f.chf)}</small>` : ''}${f.chf ? `<small class="sp">spart ${chfF(f.spart)}</small>` : ''}</div></div>`;
 }
 function byDay(list, tone) {
   if (!list.length) return '<div class="nothing">Nichts fällig</div>';
   const days = [...new Set(sortEff(list).map(f => eff(f).toDateString()))];
   return days.map(k => { const d = new Date(k), l = sortEff(list).filter(f => eff(f).toDateString() === k);
-    return `<div class="dayh ${d < today && !tone ? 'od' : ''}"><span>${WDL[d.getDay()]}, ${ds(d)}${d < today && !tone ? ' · überfällig' : ''}</span><span>${eur(sumOf(l))}</span></div>${l.map(f => row(f, tone || bucket(f))).join('')}`; }).join('');
+    return `<div class="dayh ${d < today && !tone ? 'od' : ''}"><span>${WDL[d.getDay()]}, ${ds(d)}${d < today && !tone ? ' · überfällig' : ''}</span><span>${eur(sumOf(l))} · ≈ ${chfF(sumChfOf(l))}</span></div>${l.map(f => row(f, tone || bucket(f))).join('')}`; }).join('');
 }
 function byKW(list) {
   if (!list.length) return '<div class="nothing">Nichts fällig</div>';
   const ws = [...new Set(list.map(f => weekIdx(eff(f))))].sort((a, b) => a - b);
   return ws.map(w => { const l = list.filter(f => weekIdx(eff(f)) === w);
-    return `<div class="dayh"><span>KW ${kwNr(addDays(mon0, w*7))} · ${range(w)}</span><span>${eur(sumOf(l))}</span></div>${sortEff(l).map(f => row(f, 'later')).join('')}`; }).join('');
+    return `<div class="dayh"><span>KW ${kwNr(addDays(mon0, w*7))} · ${range(w)}</span><span>${eur(sumOf(l))} · ≈ ${chfF(sumChfOf(l))}</span></div>${sortEff(l).map(f => row(f, 'later')).join('')}`; }).join('');
 }
 function strip(w, list) {
   return `<div class="strip">${[...Array(7)].map((_, i) => { const d = addDays(mon0, w*7 + i), n = list.filter(f => eff(f).getTime() === d.getTime()).length, od = n && d < today;
@@ -232,7 +235,7 @@ function render() {
   const defs = [['od','Überfällig',''],['w0','Diese Woche',range(0)],['w1','Nächste Woche',range(1)],['later','Später','ab ' + ds(addDays(mon0,14))],['done','Erledigt','letzte ' + CFG.erledigtTage + ' Tage']];
   const tiles = defs.map(([k,t,s]) => `<button class="tile ${k} ${g[k].length || k === 'done' ? '' : 'zero'} ${sel === k ? 'on' : ''}" data-s="${k}">
     <span class="n">${g[k].length || (k === 'done' ? '0' : '✓')}</span><span class="t">${t}</span>
-    <span class="s">${k === 'done' ? (g[k].length ? eur(sumOf(g[k])) : 'noch nichts') : g[k].length ? eur(sumOf(g[k])) : 'nichts fällig'}</span>${(k === 'w0' || k === 'w1') ? strip(k === 'w0' ? 0 : 1, g[k]) : ''}${s ? `<span class="s">${s}</span>` : ''}</button>`).join('');
+    <span class="s">${k === 'done' ? (g[k].length ? eur(sumOf(g[k])) : 'noch nichts') : g[k].length ? eur(sumOf(g[k])) : 'nichts fällig'}</span>${g[k].length ? `<span class="s">≈ ${chfF(sumChfOf(g[k]))}</span>` : ''}${(k === 'w0' || k === 'w1') ? strip(k === 'w0' ? 0 : 1, g[k]) : ''}${s ? `<span class="s">${s}</span>` : ''}</button>`).join('');
   const tot = ALL.length, n = done.length;
   app.innerHTML = `<div class="tools">
       <button class="btn" id="reload">Aktualisieren</button>
@@ -241,7 +244,7 @@ function render() {
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
     <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    <p class="note">${noDate ? noDate + ' offene Rate(n) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist Rechnungsnummer und Rate, so wie Megamo ihn in den Erinnerungen schreibt. Ein Klick auf den Zahlungszweck kopiert die Rechnungsnummer (ohne Rate) in die Zwischenablage, damit du sie in der Excel suchen kannst. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in EUR. Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">${noDate ? noDate + ' offene Rate(n) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist Rechnungsnummer und Rate, so wie Megamo ihn in den Erinnerungen schreibt. Ein Klick auf den Zahlungszweck kopiert die Rechnungsnummer (ohne Rate) in die Zwischenablage, damit du sie in der Excel suchen kannst. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in EUR, darunter der Betrag in Franken (EZB-Kurs vom Zahlungstag, bei offenen Raten der Planungskurs aus der Excel) und die Ersparnis gegenüber einem Einkauf in Franken (1:1). Die Franken-Werte sind Schätzwerte. Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 // ---------- Haken setzen (schreibt in die Excel: Spalte J Status, Spalte M Bezahlt am) ----------
