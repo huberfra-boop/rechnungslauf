@@ -165,7 +165,7 @@ const demoRows = () => { const d = n => addDays(today, n), o = (l, nr, b, n, ext
   return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
 let ALL_DEMO_N = 0;
 let GUT = [], gutFehler = ''; // offene Guthaben (Blatt Gutschriften, Status offen)
-const demoGut = () => [{ row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }, { row: 4, lieferant: 'Merida', nr: 'G-12', datum: addDays(today, -5), betrag: 20, gesamt: 220, abgez: 200, abgezVon: 'M-0', status: 'teilverrechnet', bezug: 'Gutschrift Retoure, aus Rechnung M-00', dz: false }];
+const demoGut = () => [{ row: 9, lieferant: 'Scott', nr: 'G-5', datum: addDays(today, -8), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', status: 'offen', bezug: 'Gutschrift Retoure, aus Rechnung S-00', dz: false }, { row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, gesamt: 223.25, abgez: 0, abgezVon: '', bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }, { row: 4, lieferant: 'Merida', nr: 'G-12', datum: addDays(today, -5), betrag: 20, gesamt: 220, abgez: 200, abgezVon: 'M-0', status: 'teilverrechnet', bezug: 'Gutschrift Retoure, aus Rechnung M-00', dz: false }];
 // gleicher Lieferant: gleich (Gross/Klein egal) oder einer beginnt mit dem anderen (mind. 4 Zeichen), wie in der Rechnungsautomation
 const gleich = (a, b) => { const x = a.trim().toLowerCase(), y = b.trim().toLowerCase(); return x === y || (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x))); };
 // Guthaben auf die offenen Rechnungen des gleichen Lieferanten verteilen (früheste Fälligkeit zuerst): wie viel ist bei welcher Rechnung abzuziehen?
@@ -313,16 +313,22 @@ async function setStatus(f, neu) {
     } else f.bezahltAm = neu === 'bezahlt' ? today : null;
     const hatteAbzug = f.abzug > 0.004;
     // Welche Guthaben waren bei dieser Rechnung zum Abziehen vorgesehen? (vor der Neuverteilung merken)
-    const abzuege = neu === 'bezahlt' ? GUT.map(g => ({ g, a: g.auf.find(x => x.nr === f.nr) })).filter(x => x.a) : [];
+    const kandidaten = (neu === 'bezahlt' && hatteAbzug) ? GUT.filter(g => gleich(g.lieferant, f.lieferant)) : [];
     f.paid = neu === 'bezahlt'; f.status = neu; verteile();
     toast(neu === 'bezahlt' ? `${f.lieferant}: als bezahlt gespeichert ✓` : `${f.lieferant}: wieder auf offen gesetzt`);
-    if (abzuege.length) {
-      const txt = abzuege.map(x => `${x.g.dz ? 'Doppelzahlung' : 'Gutschrift'} ${x.g.nr}: ${chf(x.a.betrag)}`).join('\n');
-      if (confirm(`${f.lieferant}, Rechnung ${f.nr}: Wurde das Guthaben bei dieser Zahlung wirklich abgezogen?\n\n${txt}\n\nOK = in der Excel eintragen (Abzug und Restguthaben)\nAbbrechen = nichts eintragen`)) {
-        for (const x of abzuege) await abzugBuchen(x.g, f.nr, x.a.betrag);
-        verteile();
-        toast(`${f.lieferant}: Abzug in der Excel eingetragen ✓`);
+    if (kandidaten.length) {
+      // Pro Guthaben einzeln fragen. Wer abbricht, überspringt dieses Guthaben; der Rest der Rechnung wird mit dem nächsten Guthaben gerechnet.
+      let offen = f.betrag, gebucht = 0;
+      for (const g of kandidaten) {
+        const nimm = Math.round(Math.min(g.betrag, offen) * 100) / 100;
+        if (nimm < 0.005) continue;
+        const art = g.dz ? 'Doppelzahlung' : 'Gutschrift';
+        if (!confirm(`${f.lieferant}, Rechnung ${f.nr} (${chf(f.betrag)}), noch abzuziehen: ${chf(offen)}\n\n${art} ${g.nr}, Guthaben ${chf(g.betrag)}\n→ bei dieser Rechnung abziehen: ${chf(nimm)}${g.betrag - nimm > 0.004 ? '\n→ Restguthaben danach: ' + chf(g.betrag - nimm) : ''}\n\nOK = abziehen und in der Excel eintragen\nAbbrechen = dieses Guthaben NICHT verwenden`)) continue;
+        await abzugBuchen(g, f.nr, nimm);
+        offen = Math.round((offen - nimm) * 100) / 100; gebucht += nimm;
       }
+      verteile();
+      if (gebucht > 0) toast(`${f.lieferant}: Abzug ${chf(gebucht)} in der Excel eingetragen ✓ · Rechnung ${chf(f.betrag)}, davon durch Guthaben gedeckt: ${chf(gebucht)}, zu überweisen: ${chf(Math.max(0, offen))}`);
     }
   } catch (e) {
     toast(e.message, true);
