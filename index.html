@@ -158,6 +158,18 @@ async function graph(method, path, body, raw) {
   return raw ? r : (r.status === 204 ? null : r.json());
 }
 
+// Nach einem Schreibzugriff liefert die Excel-Schnittstelle beim sofortigen Zurücklesen manchmal noch den ALTEN Stand (die Änderung ist dann
+// trotzdem gespeichert). Darum mehrmals nachlesen, bis der erwartete Stand da ist (bis ca. 12 Sekunden), statt sofort einen Fehler zu melden.
+async function liesBis(rg, ok, versuche = 8, pauseMs = 1500) {
+  let v;
+  for (let i = 0; i < versuche; i++) {
+    v = (await graph('GET', rg + '?$select=values')).values[0];
+    if (ok(v)) return { v, ok: true };
+    await new Promise(r => setTimeout(r, pauseMs));
+  }
+  return { v, ok: false };
+}
+
 // ---------- Daten ----------
 let ALL = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
 const skOn = () => !!document.getElementById('sk')?.checked;
@@ -307,8 +319,9 @@ async function setStatus(f, neu) {
       const erwartet = neu === 'bezahlt' ? 'offen' : 'bezahlt';
       if (String(cur[5]).trim().toLowerCase() !== erwartet) throw new Error('Der Status dieser Rechnung wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
       await graph('PATCH', `${await sheet()}/range(address='F${f.row}')`, { values: [[neu]] });
-      const chk = (await graph('GET', rg + '?$select=values')).values[0];
-      if (String(chk[5]).trim().toLowerCase() !== neu) throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
+      const lese = await liesBis(rg, v => String(v[5]).trim().toLowerCase() === neu);
+      const chk = lese.v;
+      if (!lese.ok) throw new Error('Die Änderung wurde an die Excel gesendet, aber die Excel hat sie nach 12 Sekunden noch nicht bestätigt. Bitte auf «Aktualisieren» drücken und in der Excel prüfen, bevor du den Haken nochmals anklickst.');
       f.bezahltAm = neu === 'bezahlt' ? (serial2date(chk[6]) || today) : null;
     } else f.bezahltAm = neu === 'bezahlt' ? today : null;
     const hatteAbzug = f.abzug > 0.004;
@@ -348,8 +361,8 @@ async function abzugBuchen(g, nr, betrag) {
     if (rd(Math.abs(Number(cur[11]) || 0)) !== rd(g.abgez || 0)) throw new Error('Der abgezogene Betrag wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
     await graph('PATCH', `${await gsheet()}/range(address='K${g.row}:L${g.row}')`, { values: [[neuVon, neuAbz]] });
     await graph('PATCH', `${await gsheet()}/range(address='F${g.row}')`, { values: [[neuStatus]] });
-    const chk = (await graph('GET', rg + '?$select=values')).values[0];
-    if (rd(Number(chk[11]) || 0) !== neuAbz || String(chk[5]).trim().toLowerCase() !== neuStatus) throw new Error('Die Excel hat den Abzug nicht übernommen. Bitte in der Excel prüfen.');
+    const lese = await liesBis(rg, v => rd(Number(v[11]) || 0) === neuAbz && String(v[5]).trim().toLowerCase() === neuStatus);
+    if (!lese.ok) throw new Error('Der Abzug wurde an die Excel gesendet, aber noch nicht bestätigt. Bitte auf «Aktualisieren» drücken und im Blatt «Gutschriften» prüfen.');
   }
   g.abgez = neuAbz; g.abgezVon = neuVon; g.betrag = Math.max(0, rest); g.status = neuStatus;
   if (neuStatus === 'verrechnet') GUT = GUT.filter(x => x !== g);
@@ -365,8 +378,8 @@ async function setGut(g) {
       if (String(cur[0]).trim() !== g.lieferant || String(cur[1] ?? '') !== g.nr) throw new Error('Die Zeile in der Excel hat sich verändert. Die Seite wird neu geladen, bitte nochmals versuchen.');
       if (!['offen', 'teilverrechnet'].includes(String(cur[5]).trim().toLowerCase())) throw new Error('Dieses Guthaben wurde inzwischen in der Excel geändert. Die Seite wird neu geladen.');
       await graph('PATCH', `${await gsheet()}/range(address='F${g.row}')`, { values: [['verrechnet']] });
-      const chk = (await graph('GET', rg + '?$select=values')).values[0];
-      if (String(chk[5]).trim().toLowerCase() !== 'verrechnet') throw new Error('Die Excel hat die Änderung nicht übernommen. Bitte in der Excel prüfen.');
+      const lese = await liesBis(rg, v => String(v[5]).trim().toLowerCase() === 'verrechnet');
+      if (!lese.ok) throw new Error('Die Änderung wurde an die Excel gesendet, aber noch nicht bestätigt. Bitte auf «Aktualisieren» drücken und in der Excel prüfen.');
     }
     GUT = GUT.filter(x => x !== g); verteile();
     toast(`${g.lieferant}: Guthaben ${chf(g.betrag)} als verrechnet gespeichert ✓`);
