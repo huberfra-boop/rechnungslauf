@@ -191,7 +191,7 @@ async function liesBis(rg, ok, versuche = 8, pauseMs = 1500) {
 let ALL = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
 const skOn = () => !!document.getElementById('sk')?.checked;
 const demoRows = () => { const d = n => addDays(today, n), o = (l, nr, b, n, extra) => ({ row: 100+ALL_DEMO_N++, lieferant: l, nr, betrag: b, netto: d(n), status: 'offen', bezahltAm: null, mahnung: false, ablage: '01_Pendente_Rechnungen\\x.pdf', bemerkung: '', ...extra });
-  return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
+  return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Belimport','2026/1 Rate 1/4',10419.73,19), o('AXA Stiftung Berufliche Vorsorge','Q4-2026',13516.8,50), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
 let ALL_DEMO_N = 0;
 let GUT = [], gutFehler = ''; // offene Guthaben (Blatt Gutschriften, Status offen)
 const demoGut = () => [{ row: 9, lieferant: 'Scott', nr: 'G-5', datum: addDays(today, -8), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', status: 'offen', bezug: 'Gutschrift Retoure, aus Rechnung S-00', dz: false }, { row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, gesamt: 223.25, abgez: 0, abgezVon: '', bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }, { row: 4, lieferant: 'Merida', nr: 'G-12', datum: addDays(today, -5), betrag: 20, gesamt: 220, abgez: 200, abgezVon: 'M-0', status: 'teilverrechnet', bezug: 'Gutschrift Retoure, aus Rechnung M-00', dz: false }];
@@ -261,14 +261,17 @@ async function load() {
 }
 let HIST = [];
 // ---------- Monatsübersicht (nach «Bezahlen bis»; wie bei Megamo: Total, bezahlt, noch zu bezahlen) ----------
-let mJahr = null, mSel = null; // gewähltes Jahr / aufgeklappter Monat («JJJJ-MM»)
+let mJahr = null, mSel = null, mKat = 'alle'; // gewähltes Jahr / aufgeklappter Monat («JJJJ-MM») / Art der Rechnungen
 const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const mkey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 const sumPlain = l => l.reduce((a, f) => a + f.betrag, 0); // ohne Skonto, ohne Guthaben-Abzug
 const nR = n => `${n} ${n === 1 ? 'Rechnung' : 'Rechnungen'}`;
+// Art der Rechnung: AXA (Pensionskasse) und Belimport-Raten (Bikes) werden getrennt von den allgemeinen Lieferantenrechnungen ausgewiesen
+const KATS = [['allg', 'Allgemeine Lieferantenrechnungen'], ['axa', 'AXA Stiftung (Pensionskasse)'], ['bike', 'Belimport Bikes (Raten)']];
+const kat = f => /^axa/i.test(f.lieferant) ? 'axa' : (/^bel+import/i.test(f.lieferant) && /rate/i.test(f.nr)) ? 'bike' : 'allg';
 function monthRows(jahr) {
   const m = {};
-  HIST.filter(f => f.netto.getFullYear() === jahr).forEach(f => { (m[mkey(f.netto)] ||= []).push(f); });
+  HIST.filter(f => f.netto.getFullYear() === jahr && (mKat === 'alle' || kat(f) === mKat)).forEach(f => { (m[mkey(f.netto)] ||= []).push(f); });
   return Object.keys(m).sort().map(k => { const l = m[k], p = l.filter(f => f.paid), o = l.filter(f => !f.paid);
     return { k, mon: +k.slice(5) - 1, l, p, o, tot: sumPlain(l), pS: sumPlain(p), oS: sumPlain(o) }; });
 }
@@ -278,21 +281,30 @@ function renderMonate() {
   if (!jahre.includes(mJahr)) mJahr = jahre.includes(today.getFullYear()) ? today.getFullYear() : jahre[jahre.length - 1];
   const rows = monthRows(mJahr), curK = mkey(today);
   const T = rows.reduce((a, r) => ({ n: a.n + r.l.length, tot: a.tot + r.tot, pn: a.pn + r.p.length, pS: a.pS + r.pS, on: a.on + r.o.length, oS: a.oS + r.oS }), { n:0, tot:0, pn:0, pS:0, on:0, oS:0 });
+  // im Monat «davon …»: offener Betrag von AXA und Bikes (nur in der Ansicht «Alle»)
+  const davon = r => mKat !== 'alle' ? '' : KATS.slice(1).map(([c, t]) => { const x = sumPlain(r.o.filter(f => kat(f) === c)); return x > 0.004 ? `<small>davon ${c === 'axa' ? 'AXA' : 'Bikes (Belimport)'}: ${chf(x)}</small>` : ''; }).join('');
   const tr = rows.map(r => { const late = r.o.length && r.k < curK;
     return `<tr class="mrow ${mSel === r.k ? 'sel' : ''} ${r.k === curK ? 'cur' : ''}" data-m="${r.k}">
       <td class="mn">${MONATE[r.mon]} ${mJahr}</td>
       <td><b>${chf(r.tot)}</b><small>${nR(r.l.length)}</small></td>
       <td class="ok">${r.p.length ? `${chf(r.pS)}<small>${nR(r.p.length)}</small>` : '–'}</td>
-      <td class="op ${late ? 'late' : ''}">${r.o.length ? `${chf(r.oS)}<small>${nR(r.o.length)}${late ? ' · überfällig' : ''}</small>` : '<span class="ok">✓ alles bezahlt</span>'}</td>
+      <td class="op ${late ? 'late' : ''}">${r.o.length ? `${chf(r.oS)}<small>${nR(r.o.length)}${late ? ' · überfällig' : ''}</small>${davon(r)}` : '<span class="ok">✓ alles bezahlt</span>'}</td>
       <td><span class="mbar"><div style="width:${r.l.length ? r.p.length / r.l.length * 100 : 0}%"></div></span></td></tr>`; }).join('');
   const r = rows.find(x => x.k === mSel);
   const detail = r ? `<div class="mhead">${MONATE[r.mon]} ${mJahr} · noch zu bezahlen (${r.o.length}) · ${chf(r.oS)}</div>${r.o.length ? byDay(r.o) : '<div class="nothing">Alles bezahlt</div>'}
     <div class="mhead">${MONATE[r.mon]} ${mJahr} · bezahlt (${r.p.length}) · ${chf(r.pS)}</div>${r.p.length ? byDay(r.p, 'done') : '<div class="nothing" style="color:var(--grey)">Noch nichts bezahlt</div>'}` : '';
-  return `<div class="mtools"><span>Jahr:</span>${jahre.map(j => `<button data-j="${j}" class="${j === mJahr ? 'on' : ''}">${j}</button>`).join('')}<span style="margin-left:12px">Zeile anklicken = Rechnungen des Monats anzeigen</span></div>
+  // Aufteilung nach Art für das ganze Jahr
+  const jahrL = HIST.filter(f => f.netto.getFullYear() === mJahr);
+  const aufTr = KATS.map(([c, t]) => { const l = jahrL.filter(f => kat(f) === c); if (!l.length) return '';
+    const p = l.filter(f => f.paid), o = l.filter(f => !f.paid);
+    return `<tr><td class="mn" style="font-size:.85rem">${t}</td><td>${chf(sumPlain(l))}<small>${nR(l.length)}</small></td><td class="ok">${p.length ? chf(sumPlain(p)) : '–'}</td><td class="op">${o.length ? chf(sumPlain(o)) : '–'}</td><td></td></tr>`; }).join('');
+  const aufteilung = mKat === 'alle' && aufTr ? `<div class="mhead">Aufteilung ${mJahr} nach Art</div><div class="mwrap"><table class="mt" style="min-width:560px"><thead><tr><th>Art</th><th>Total</th><th>Bezahlt</th><th>Noch zu bezahlen</th><th></th></tr></thead><tbody>${aufTr}</tbody></table></div>` : '';
+  const katBtn = [['alle', 'Alle'], ['allg', 'Allgemein'], ['axa', 'AXA'], ['bike', 'Belimport Bikes']].map(([c, t]) => `<button data-k2="${c}" class="${c === mKat ? 'on' : ''}">${t}</button>`).join('');
+  return `<div class="mtools"><span>Jahr:</span>${jahre.map(j => `<button data-j="${j}" class="${j === mJahr ? 'on' : ''}">${j}</button>`).join('')}<span style="margin-left:12px">Art:</span>${katBtn}</div>
     <div class="mwrap"><table class="mt"><thead><tr><th>Monat (Bezahlen bis)</th><th>Total</th><th>Bezahlt</th><th>Noch zu bezahlen</th><th>Fortschritt</th></tr></thead>
-    <tbody>${tr}</tbody>
-    <tfoot><tr><td>Total ${mJahr}</td><td>${chf(T.tot)}<small>${nR(T.n)}</small></td><td>${chf(T.pS)}<small>${nR(T.pn)}</small></td><td>${chf(T.oS)}<small>${nR(T.on)}</small></td><td></td></tr></tfoot></table></div>${detail}
-    <p class="note" style="margin:12px 16px">Beträge ohne Skonto und ohne Abzug von Guthaben. Gutschriften und Mahnungen ohne Rechnung sind nicht enthalten.</p>`;
+    <tbody>${tr || '<tr><td colspan="5" style="text-align:left;padding-left:16px">Keine Rechnungen dieser Art</td></tr>'}</tbody>
+    <tfoot><tr><td>Total ${mJahr}</td><td>${chf(T.tot)}<small>${nR(T.n)}</small></td><td>${chf(T.pS)}<small>${nR(T.pn)}</small></td><td>${chf(T.oS)}<small>${nR(T.on)}</small></td><td></td></tr></tfoot></table></div>${detail}${aufteilung}
+    <p class="note" style="margin:12px 16px">Zeile anklicken = Rechnungen des Monats anzeigen. Beträge ohne Skonto und ohne Abzug von Guthaben. Gutschriften und Mahnungen ohne Rechnung sind nicht enthalten. Belimport Bikes = Raten der Bike-Rechnung; kleine Belimport-Rechnungen zählen zu «Allgemein».</p>`;
 }
 
 const eff =f => (!f.paid && skOn() && f.sk) ? f.sk : f.netto;
@@ -360,7 +372,7 @@ function render() {
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button><button data-s="monate" class="${sel === 'monate' ? 'on' : ''}">Monatsübersicht</button></div>
     <section class="blk ${sel === 'monate' ? '' : sel === 'jetzt' ? 'w0' : sel}">${sel === 'monate' ? renderMonate() : sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Version 08.11. (Monatsübersicht) · Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 // ---------- Haken setzen (schreibt in die Excel) ----------
@@ -472,6 +484,7 @@ document.addEventListener('change', e => {
 document.addEventListener('click', async e => {
   const gv = e.target.closest('[data-gv]');
   if (gv) { const g = GUT.find(x => String(x.row) === gv.dataset.gv); if (g && confirm(`${g.lieferant}: Guthaben ${chf(g.betrag)} wirklich als «verrechnet» markieren?\n\nNur anklicken, wenn der Betrag bei einer Zahlung wirklich abgezogen wurde.`)) setGut(g); return; }
+  const mk = e.target.closest('[data-k2]'); if (mk) { mKat = mk.dataset.k2; mSel = null; render(); return; }
   const mj = e.target.closest('[data-j]'); if (mj) { mJahr = +mj.dataset.j; mSel = null; render(); return; }
   const mm = e.target.closest('[data-m]'); if (mm) { mSel = mSel === mm.dataset.m ? null : mm.dataset.m; render(); return; }
   const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
