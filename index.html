@@ -80,11 +80,23 @@
   .busy .gbtn { pointer-events:none; }
   @media (max-width:560px){ .gut .gi{grid-template-columns:1fr auto;} .gut .gbtn{grid-column:1 / -1; text-align:center;} }
   .chip.g { background:var(--pink); color:var(--white); font-weight:900; }
-  .mon { background:var(--white); border:1px solid var(--line); margin-top:18px; }
-  .mon summary { cursor:pointer; padding:12px 14px; font:900 .9rem Nunito,sans-serif; letter-spacing:.05em; text-transform:uppercase; }
-  .mon table { width:100%; border-collapse:collapse; font-size:.92rem; } .mon th, .mon td { padding:8px 14px; text-align:right; border-top:1px solid var(--line); }
-  .mon th:first-child, .mon td:first-child { text-align:left; } .mon th { font-weight:500; color:var(--grey); font-size:.8rem; }
-  .mon tr.now td { background:#fff4d6; font-weight:600; } .mon tr.tot td { font-weight:900; border-top:2px solid var(--black); } .mon td.dim { color:var(--grey); }
+  .mtools { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .mtools span { font-size:.8rem; color:var(--grey); margin-right:6px; }
+  .mtools button { all:unset; cursor:pointer; padding:6px 14px; background:var(--light); font:900 .78rem Nunito,sans-serif; letter-spacing:.05em; }
+  .mtools button.on { background:var(--black); color:var(--white); }
+  .mwrap { overflow-x:auto; }
+  table.mt { width:100%; border-collapse:collapse; min-width:760px; font-size:.95rem; }
+  .mt th { text-align:right; font:900 .7rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.06em; color:var(--grey); padding:10px 12px; background:var(--light); white-space:nowrap; }
+  .mt th:first-child, .mt td:first-child { text-align:left; padding-left:16px; }
+  .mt td { text-align:right; padding:11px 12px; border-top:1px solid var(--line); white-space:nowrap; }
+  .mt td small { display:block; font-size:.76rem; }
+  .mt tbody tr.mrow { cursor:pointer; } .mt tbody tr.mrow:hover td { background:#fafafa; }
+  .mt tr.sel td { background:#f1f1f1; } .mt tr.cur td:first-child { box-shadow:inset 5px 0 0 var(--amber); }
+  .mt td.mn { font:900 1rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.03em; }
+  .mt .ok { color:var(--green); font-weight:600; } .mt .op { color:var(--text); font-weight:600; } .mt .op.late { color:var(--pink); }
+  .mt tfoot td { border-top:2px solid var(--black); font-weight:600; background:var(--light); }
+  .mbar { width:90px; height:8px; background:var(--line); display:inline-block; } .mbar div { height:100%; background:var(--green); }
+  .mhead { padding:12px 16px 6px; font:900 .95rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.05em; }
   .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
 </style>
 </head>
@@ -106,7 +118,6 @@ const CFG = {
   dateien: { echt: 'Lieferantenrechnungen.xlsx', test: 'Lieferantenrechnungen_TEST.xlsx' },
   standard: 'echt',            // 'test' = Testkopie, 'echt' = Produktiv-Excel
   blatt: 'Rechnungen',
-  monatBlatt: 'Monatsübersicht',   // Summe der Lieferantenrechnungen pro Monat (nach «Bezahlen bis»)
   guthabenBlatt: 'Gutschriften',  // Gutschriften und Doppelzahlungen (Guthaben, die bei der Zahlung abgezogen werden)
   spBase: 'https://cyclevillage.sharepoint.com/sites/CYCLEVILLAGEAG/Freigegebene%20Dokumente/',
   scopes: ['Files.ReadWrite.All', 'User.Read'],
@@ -219,12 +230,15 @@ async function load() {
       if (row < 2 || !String(v[0] ?? '').trim()) return;
       const status = String(v[5] ?? '').trim().toLowerCase(), netto = serial2date(v[4]), bezahltAm = serial2date(v[6]);
       if (status === 'offen' && !netto) { noDate++; return; }
-      if (status === 'offen' || (status === 'bezahlt' && bezahltAm && bezahltAm >= addDays(today, -CFG.erledigtTage)))
+      if (status === 'offen' || (status === 'bezahlt' && (netto || bezahltAm)))   // alle, auch ältere bezahlte (für die Monatsübersicht)
         raw.push({ row, lieferant: String(v[0]).trim(), nr: String(v[1] ?? ''), betrag: Number(v[3]) || 0, netto: netto || bezahltAm, status, bezahltAm,
           mahnung: !!String(v[7] ?? '').trim() && !/^(0|nein)$/i.test(String(v[7]).trim()), ablage: String(v[8] ?? ''), bemerkung: String(v[9] ?? '') });
     });
   }
-  ALL = build(raw); loadedAt = new Date();
+  // HIST = alle Rechnungen (für die Monatsübersicht), ALL = nur die, die im Rechnungslauf angezeigt werden (dieselben Objekte)
+  HIST = build(raw);
+  ALL = DEMO ? HIST : HIST.filter(f => !f.paid || (f.bezahltAm && f.bezahltAm >= addDays(today, -CFG.erledigtTage)));
+  loadedAt = new Date();
   // Guthaben lesen (ein Fehler hier darf die Rechnungen nicht blockieren, wird aber oben deutlich gemeldet)
   GUT = []; gutFehler = '';
   if (DEMO) GUT = demoGut();
@@ -243,19 +257,43 @@ async function load() {
       });
     } catch (e) { gutFehler = e.message; }
   }
-  // Monatsübersicht (Blatt «Monatsübersicht»: Total und bezahlt pro Monat); fehlt das Blatt, zeigt die Seite nur die offenen Beträge
-  MON = {};
-  if (!DEMO) {
-    try {
-      const m = await graph('GET', `${await wbs()}('${encodeURIComponent(CFG.monatBlatt)}')/range(address='A2:E25')?$select=values`);
-      m.values.forEach(v => { const d = serial2date(v[0]); if (d) MON[monKey(d)] = { total: Number(v[2]) || 0, bezahlt: Number(v[3]) || 0 }; });
-    } catch (e) { MON = {}; }
-  }
   verteile();
 }
-let MON = {};
-const monKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+let HIST = [];
+// ---------- Monatsübersicht (nach «Bezahlen bis»; wie bei Megamo: Total, bezahlt, noch zu bezahlen) ----------
+let mJahr = null, mSel = null; // gewähltes Jahr / aufgeklappter Monat («JJJJ-MM»)
 const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const mkey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+const sumPlain = l => l.reduce((a, f) => a + f.betrag, 0); // ohne Skonto, ohne Guthaben-Abzug
+const nR = n => `${n} ${n === 1 ? 'Rechnung' : 'Rechnungen'}`;
+function monthRows(jahr) {
+  const m = {};
+  HIST.filter(f => f.netto.getFullYear() === jahr).forEach(f => { (m[mkey(f.netto)] ||= []).push(f); });
+  return Object.keys(m).sort().map(k => { const l = m[k], p = l.filter(f => f.paid), o = l.filter(f => !f.paid);
+    return { k, mon: +k.slice(5) - 1, l, p, o, tot: sumPlain(l), pS: sumPlain(p), oS: sumPlain(o) }; });
+}
+function renderMonate() {
+  const jahre = [...new Set(HIST.map(f => f.netto.getFullYear()))].sort();
+  if (!jahre.length) return '<div class="nothing">Keine Rechnungen vorhanden</div>';
+  if (!jahre.includes(mJahr)) mJahr = jahre.includes(today.getFullYear()) ? today.getFullYear() : jahre[jahre.length - 1];
+  const rows = monthRows(mJahr), curK = mkey(today);
+  const T = rows.reduce((a, r) => ({ n: a.n + r.l.length, tot: a.tot + r.tot, pn: a.pn + r.p.length, pS: a.pS + r.pS, on: a.on + r.o.length, oS: a.oS + r.oS }), { n:0, tot:0, pn:0, pS:0, on:0, oS:0 });
+  const tr = rows.map(r => { const late = r.o.length && r.k < curK;
+    return `<tr class="mrow ${mSel === r.k ? 'sel' : ''} ${r.k === curK ? 'cur' : ''}" data-m="${r.k}">
+      <td class="mn">${MONATE[r.mon]} ${mJahr}</td>
+      <td><b>${chf(r.tot)}</b><small>${nR(r.l.length)}</small></td>
+      <td class="ok">${r.p.length ? `${chf(r.pS)}<small>${nR(r.p.length)}</small>` : '–'}</td>
+      <td class="op ${late ? 'late' : ''}">${r.o.length ? `${chf(r.oS)}<small>${nR(r.o.length)}${late ? ' · überfällig' : ''}</small>` : '<span class="ok">✓ alles bezahlt</span>'}</td>
+      <td><span class="mbar"><div style="width:${r.l.length ? r.p.length / r.l.length * 100 : 0}%"></div></span></td></tr>`; }).join('');
+  const r = rows.find(x => x.k === mSel);
+  const detail = r ? `<div class="mhead">${MONATE[r.mon]} ${mJahr} · noch zu bezahlen (${r.o.length}) · ${chf(r.oS)}</div>${r.o.length ? byDay(r.o) : '<div class="nothing">Alles bezahlt</div>'}
+    <div class="mhead">${MONATE[r.mon]} ${mJahr} · bezahlt (${r.p.length}) · ${chf(r.pS)}</div>${r.p.length ? byDay(r.p, 'done') : '<div class="nothing" style="color:var(--grey)">Noch nichts bezahlt</div>'}` : '';
+  return `<div class="mtools"><span>Jahr:</span>${jahre.map(j => `<button data-j="${j}" class="${j === mJahr ? 'on' : ''}">${j}</button>`).join('')}<span style="margin-left:12px">Zeile anklicken = Rechnungen des Monats anzeigen</span></div>
+    <div class="mwrap"><table class="mt"><thead><tr><th>Monat (Bezahlen bis)</th><th>Total</th><th>Bezahlt</th><th>Noch zu bezahlen</th><th>Fortschritt</th></tr></thead>
+    <tbody>${tr}</tbody>
+    <tfoot><tr><td>Total ${mJahr}</td><td>${chf(T.tot)}<small>${nR(T.n)}</small></td><td>${chf(T.pS)}<small>${nR(T.pn)}</small></td><td>${chf(T.oS)}<small>${nR(T.on)}</small></td><td></td></tr></tfoot></table></div>${detail}
+    <p class="note" style="margin:12px 16px">Beträge ohne Skonto und ohne Abzug von Guthaben. Gutschriften und Mahnungen ohne Rechnung sind nicht enthalten.</p>`;
+}
 
 const eff =f => (!f.paid && skOn() && f.sk) ? f.sk : f.netto;
 const sumOf = l => l.reduce((a,f) => a + ((skOn() && f.sk && f.skBetrag && !f.paid) ? f.skBetrag : f.betrag) - (f.paid ? 0 : (f.abzug || 0)), 0);
@@ -294,23 +332,6 @@ function strip(w, list) {
     return `<i class="${n ? 'has' : ''} ${od ? 'od' : w === 0 ? 'w0' : ''} ${d.getTime() === today.getTime() ? 'today' : ''} ${d < today ? 'past' : ''}" title="${WDL[d.getDay()]} ${ds(d)}">${n || WD7[i][0]}</i>`; }).join('')}</div>`;
 }
 
-// Monatsübersicht: wie viel ist pro Monat (nach «Bezahlen bis») zu zahlen? «Noch offen» rechnet die Seite live aus den offenen Rechnungen
-// (ohne Skonto, ohne Abzug von Guthaben); Total und bezahlt kommen aus dem Excel-Blatt «Monatsübersicht».
-function monBox() {
-  const m = {};
-  ALL.filter(f => !f.paid).forEach(f => { const k = monKey(f.netto); (m[k] = m[k] || { n: 0, offen: 0 }); m[k].n++; m[k].offen += f.betrag; });
-  const keys = [...new Set([...Object.keys(m), ...Object.keys(MON).filter(k => MON[k].total || MON[k].bezahlt)])].sort();
-  if (!keys.length) return '';
-  const nowK = monKey(today), hatX = Object.keys(MON).length > 0;
-  let sn = 0, so = 0, st = 0, sb = 0;
-  const rows = keys.map(k => { const [y, mo] = k.split('-'), a = m[k] || { n: 0, offen: 0 }, x = MON[k];
-    sn += a.n; so += a.offen; if (x) { st += x.total; sb += x.bezahlt; }
-    return `<tr class="${k === nowK ? 'now' : ''}"><td>${MONATE[+mo - 1]} ${y}</td><td>${a.n}</td><td>${chf(a.offen)}</td><td class="dim">${x ? chf(x.bezahlt) : '–'}</td><td class="dim">${x ? chf(x.total) : '–'}</td></tr>`; }).join('');
-  return `<details class="mon" open><summary>Monatsübersicht: so viel ist pro Monat zu zahlen</summary><div style="overflow-x:auto"><table>
-    <tr><th>Monat (Bezahlen bis)</th><th>offene Rechnungen</th><th>noch offen</th><th>schon bezahlt</th><th>Total</th></tr>${rows}
-    <tr class="tot"><td>Total</td><td>${sn}</td><td>${chf(so)}</td><td class="dim">${hatX ? chf(sb) : '–'}</td><td class="dim">${hatX ? chf(st) : '–'}</td></tr></table></div></details>`;
-}
-
 function render() {
   const keepSk = skOn();
   const open = ALL.filter(f => !f.paid), done = ALL.filter(f => f.paid);
@@ -337,9 +358,8 @@ function render() {
       <div class="prog"><span>${n} von ${tot} erledigt</span><div class="pb"><div style="width:${tot ? n/tot*100 : 0}%"></div></div></div>
     </div>
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
-    <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
-    <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    ${monBox()}
+    <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button><button data-s="monate" class="${sel === 'monate' ? 'on' : ''}">Monatsübersicht</button></div>
+    <section class="blk ${sel === 'monate' ? '' : sel === 'jetzt' ? 'w0' : sel}">${sel === 'monate' ? renderMonate() : sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
     <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
@@ -442,7 +462,7 @@ async function openPdf(f) {
 // ---------- Ereignisse ----------
 document.addEventListener('change', e => {
   if (e.target.matches('input[data-k]')) {
-    const f = ALL.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
+    const f = HIST.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
     if (e.target.checked) setStatus(f, 'bezahlt');
     else if (confirm(`${f.lieferant} wieder auf «offen» setzen?`)) setStatus(f, 'offen');
     else { e.target.checked = true; }
@@ -452,8 +472,10 @@ document.addEventListener('change', e => {
 document.addEventListener('click', async e => {
   const gv = e.target.closest('[data-gv]');
   if (gv) { const g = GUT.find(x => String(x.row) === gv.dataset.gv); if (g && confirm(`${g.lieferant}: Guthaben ${chf(g.betrag)} wirklich als «verrechnet» markieren?\n\nNur anklicken, wenn der Betrag bei einer Zahlung wirklich abgezogen wurde.`)) setGut(g); return; }
+  const mj = e.target.closest('[data-j]'); if (mj) { mJahr = +mj.dataset.j; mSel = null; render(); return; }
+  const mm = e.target.closest('[data-m]'); if (mm) { mSel = mSel === mm.dataset.m ? null : mm.dataset.m; render(); return; }
   const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
-  const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(ALL.find(x => String(x.row) === p.dataset.pdf)); return; }
+  const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(HIST.find(x => String(x.row) === p.dataset.pdf)); return; }
   if (e.target.id === 'reload') refresh(true);
   if (e.target.id === 'li') pca.loginRedirect({ scopes: CFG.scopes });
   if (e.target.id === 'lo') pca.logoutRedirect({ account });
