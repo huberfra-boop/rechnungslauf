@@ -80,6 +80,11 @@
   .busy .gbtn { pointer-events:none; }
   @media (max-width:560px){ .gut .gi{grid-template-columns:1fr auto;} .gut .gbtn{grid-column:1 / -1; text-align:center;} }
   .chip.g { background:var(--pink); color:var(--white); font-weight:900; }
+  .mon { background:var(--white); border:1px solid var(--line); margin-top:18px; }
+  .mon summary { cursor:pointer; padding:12px 14px; font:900 .9rem Nunito,sans-serif; letter-spacing:.05em; text-transform:uppercase; }
+  .mon table { width:100%; border-collapse:collapse; font-size:.92rem; } .mon th, .mon td { padding:8px 14px; text-align:right; border-top:1px solid var(--line); }
+  .mon th:first-child, .mon td:first-child { text-align:left; } .mon th { font-weight:500; color:var(--grey); font-size:.8rem; }
+  .mon tr.now td { background:#fff4d6; font-weight:600; } .mon tr.tot td { font-weight:900; border-top:2px solid var(--black); } .mon td.dim { color:var(--grey); }
   .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
 </style>
 </head>
@@ -101,7 +106,8 @@ const CFG = {
   dateien: { echt: 'Lieferantenrechnungen.xlsx', test: 'Lieferantenrechnungen_TEST.xlsx' },
   standard: 'echt',            // 'test' = Testkopie, 'echt' = Produktiv-Excel
   blatt: 'Rechnungen',
-  guthabenBlatt: 'Gutschriften',   // Gutschriften und Doppelzahlungen (Guthaben, die bei der Zahlung abgezogen werden)
+  monatBlatt: 'Monatsübersicht',   // Summe der Lieferantenrechnungen pro Monat (nach «Bezahlen bis»)
+  guthabenBlatt: 'Gutschriften',  // Gutschriften und Doppelzahlungen (Guthaben, die bei der Zahlung abgezogen werden)
   spBase: 'https://cyclevillage.sharepoint.com/sites/CYCLEVILLAGEAG/Freigegebene%20Dokumente/',
   scopes: ['Files.ReadWrite.All', 'User.Read'],
   erledigtTage: 14             // bezahlte Rechnungen bleiben so lange unter "Erledigt" sichtbar
@@ -237,10 +243,21 @@ async function load() {
       });
     } catch (e) { gutFehler = e.message; }
   }
+  // Monatsübersicht (Blatt «Monatsübersicht»: Total und bezahlt pro Monat); fehlt das Blatt, zeigt die Seite nur die offenen Beträge
+  MON = {};
+  if (!DEMO) {
+    try {
+      const m = await graph('GET', `${await wbs()}('${encodeURIComponent(CFG.monatBlatt)}')/range(address='A2:E25')?$select=values`);
+      m.values.forEach(v => { const d = serial2date(v[0]); if (d) MON[monKey(d)] = { total: Number(v[2]) || 0, bezahlt: Number(v[3]) || 0 }; });
+    } catch (e) { MON = {}; }
+  }
   verteile();
 }
+let MON = {};
+const monKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
-const eff = f => (!f.paid && skOn() && f.sk) ? f.sk : f.netto;
+const eff =f => (!f.paid && skOn() && f.sk) ? f.sk : f.netto;
 const sumOf = l => l.reduce((a,f) => a + ((skOn() && f.sk && f.skBetrag && !f.paid) ? f.skBetrag : f.betrag) - (f.paid ? 0 : (f.abzug || 0)), 0);
 const bucket = f => { const d = eff(f); if (d < today) return 'od'; const w = weekIdx(d); return w <= 0 ? 'w0' : w === 1 ? 'w1' : 'later'; };
 const sortEff = l => [...l].sort((a,b) => eff(a) - eff(b));
@@ -277,6 +294,23 @@ function strip(w, list) {
     return `<i class="${n ? 'has' : ''} ${od ? 'od' : w === 0 ? 'w0' : ''} ${d.getTime() === today.getTime() ? 'today' : ''} ${d < today ? 'past' : ''}" title="${WDL[d.getDay()]} ${ds(d)}">${n || WD7[i][0]}</i>`; }).join('')}</div>`;
 }
 
+// Monatsübersicht: wie viel ist pro Monat (nach «Bezahlen bis») zu zahlen? «Noch offen» rechnet die Seite live aus den offenen Rechnungen
+// (ohne Skonto, ohne Abzug von Guthaben); Total und bezahlt kommen aus dem Excel-Blatt «Monatsübersicht».
+function monBox() {
+  const m = {};
+  ALL.filter(f => !f.paid).forEach(f => { const k = monKey(f.netto); (m[k] = m[k] || { n: 0, offen: 0 }); m[k].n++; m[k].offen += f.betrag; });
+  const keys = [...new Set([...Object.keys(m), ...Object.keys(MON).filter(k => MON[k].total || MON[k].bezahlt)])].sort();
+  if (!keys.length) return '';
+  const nowK = monKey(today), hatX = Object.keys(MON).length > 0;
+  let sn = 0, so = 0, st = 0, sb = 0;
+  const rows = keys.map(k => { const [y, mo] = k.split('-'), a = m[k] || { n: 0, offen: 0 }, x = MON[k];
+    sn += a.n; so += a.offen; if (x) { st += x.total; sb += x.bezahlt; }
+    return `<tr class="${k === nowK ? 'now' : ''}"><td>${MONATE[+mo - 1]} ${y}</td><td>${a.n}</td><td>${chf(a.offen)}</td><td class="dim">${x ? chf(x.bezahlt) : '–'}</td><td class="dim">${x ? chf(x.total) : '–'}</td></tr>`; }).join('');
+  return `<details class="mon" open><summary>Monatsübersicht: so viel ist pro Monat zu zahlen</summary><div style="overflow-x:auto"><table>
+    <tr><th>Monat (Bezahlen bis)</th><th>offene Rechnungen</th><th>noch offen</th><th>schon bezahlt</th><th>Total</th></tr>${rows}
+    <tr class="tot"><td>Total</td><td>${sn}</td><td>${chf(so)}</td><td class="dim">${hatX ? chf(sb) : '–'}</td><td class="dim">${hatX ? chf(st) : '–'}</td></tr></table></div></details>`;
+}
+
 function render() {
   const keepSk = skOn();
   const open = ALL.filter(f => !f.paid), done = ALL.filter(f => f.paid);
@@ -305,6 +339,7 @@ function render() {
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
     <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
+    ${monBox()}
     <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
