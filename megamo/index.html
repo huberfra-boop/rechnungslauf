@@ -71,6 +71,23 @@
   .amt { text-align:right; white-space:nowrap; } .amt b { font:900 1.35rem Nunito,sans-serif; display:block; }
   .amt small { display:block; font-size:.82rem; font-weight:600; line-height:1.35; } .amt .chf { color:var(--text); } .amt .sp { color:var(--green); font-weight:500; font-size:.74rem; }
   @media (max-width:560px){ .row{grid-template-columns:30px 54px 1fr;} .amt{grid-column:3; text-align:left;} .prog{margin-left:0;} .zw{font-size:1.2rem;} }
+  .mtools { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .mtools span { font-size:.8rem; color:var(--grey); margin-right:6px; }
+  .mtools button { all:unset; cursor:pointer; padding:6px 14px; background:var(--light); font:900 .78rem Nunito,sans-serif; letter-spacing:.05em; }
+  .mtools button.on { background:var(--black); color:var(--white); }
+  .mwrap { overflow-x:auto; }
+  table.mt { width:100%; border-collapse:collapse; min-width:760px; font-size:.95rem; }
+  .mt th { text-align:right; font:900 .7rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.06em; color:var(--grey); padding:10px 12px; background:var(--light); white-space:nowrap; }
+  .mt th:first-child, .mt td:first-child { text-align:left; padding-left:16px; }
+  .mt td { text-align:right; padding:11px 12px; border-top:1px solid var(--line); white-space:nowrap; }
+  .mt td small { display:block; font-size:.76rem; }
+  .mt tbody tr.mrow { cursor:pointer; } .mt tbody tr.mrow:hover td { background:#fafafa; }
+  .mt tr.sel td { background:#f1f1f1; } .mt tr.cur td:first-child { box-shadow:inset 5px 0 0 var(--amber); }
+  .mt td.mn { font:900 1rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.03em; }
+  .mt .ok { color:var(--green); font-weight:600; } .mt .op { color:var(--text); font-weight:600; } .mt .op.late { color:var(--pink); }
+  .mt tfoot td { border-top:2px solid var(--black); font-weight:600; background:var(--light); }
+  .mbar { width:90px; height:8px; background:var(--line); display:inline-block; } .mbar div { height:100%; background:var(--green); }
+  .mhead { padding:12px 16px 6px; font:900 .95rem Nunito,sans-serif; text-transform:uppercase; letter-spacing:.05em; }
   .note { font-size:.78rem; color:var(--grey); margin-top:18px; border-left:3px solid var(--pink); padding-left:10px; }
 </style>
 </head>
@@ -152,7 +169,8 @@ async function graph(method, path, body, raw) {
 }
 
 // ---------- Daten ----------
-let ALL = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
+let ALL = [], HIST = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
+let mJahr = null, mSel = null; // Monatsübersicht: gewähltes Jahr / aufgeklappter Monat («JJJJ-MM»)
 const demoRows = () => { const d = n => addDays(today, n); let n = 0;
   const o = (nr, rate, von, betrag, tage, extra) => ({ row: 100 + n++, nr, rate, von, betrag, chf: +(betrag * 0.9194).toFixed(2), spart: +(betrag - betrag * 0.9194).toFixed(2), total: betrag * von, faellig: d(tage), status: 'offen', bezahltAm: null, rechnungsdatum: d(tage - 30 * rate), bike: 'PULSE 05 CW - MARBLE WHITE M (27)', ablage: '01_Pendente_Rechnungen\\2026\\x.pdf', ...extra });
   return [o('B/26010328', 2, 4, 1976.32, -2), o('B/26010564', 2, 4, 729.75, 1), o('B/26010560', 2, 4, 825.74, 1, {bike:'RYAL 05 - WHITE M (27)'}), o('B/26007738', 4, 4, 446.70, 1), o('B/26009344', 3, 4, 1335.56, 3),
@@ -183,11 +201,49 @@ async function load() {
     raw = [];
     all.forEach(f => {
       if (f.status === 'offen' && !f.faellig) { noDate++; return; }
-      if (f.status === 'offen' || (f.status === 'bezahlt' && f.bezahltAm && f.bezahltAm >= addDays(today, -CFG.erledigtTage)))
-        raw.push({ ...f, faellig: f.faellig || f.bezahltAm });
+      if (!f.faellig && f.bezahltAm) f.faellig = f.bezahltAm;
+      if (f.faellig && (f.status === 'offen' || f.status === 'bezahlt')) raw.push(f);
     });
   }
-  ALL = build(raw); loadedAt = new Date();
+  // HIST = alle Raten (für die Monatsübersicht), ALL = nur die, die im Rechnungslauf angezeigt werden (dieselben Objekte)
+  HIST = build(raw);
+  ALL = DEMO ? HIST : HIST.filter(f => !f.paid || (f.bezahltAm && f.bezahltAm >= addDays(today, -CFG.erledigtTage)));
+  loadedAt = new Date();
+}
+
+// ---------- Monatsübersicht ----------
+const MON = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const mkey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+function monthRows(jahr) {
+  const m = {};
+  HIST.filter(f => f.faellig.getFullYear() === jahr).forEach(f => { const k = mkey(f.faellig); (m[k] ||= []).push(f); });
+  return Object.keys(m).sort().map(k => {
+    const l = m[k], p = l.filter(f => f.paid), o = l.filter(f => !f.paid);
+    return { k, mon: +k.slice(5) - 1, l, p, o, eur: sumOf(l), chf: sumChfOf(l), pEur: sumOf(p), pChf: sumChfOf(p), oEur: sumOf(o), oChf: sumChfOf(o) };
+  });
+}
+function renderMonate() {
+  const jahre = [...new Set(HIST.map(f => f.faellig.getFullYear()))].sort();
+  if (!jahre.length) return '<div class="nothing">Keine Raten vorhanden</div>';
+  if (!jahre.includes(mJahr)) mJahr = jahre.includes(today.getFullYear()) ? today.getFullYear() : jahre[jahre.length - 1];
+  const rows = monthRows(mJahr), curK = mkey(today);
+  const T = rows.reduce((a, r) => ({ n: a.n + r.l.length, eur: a.eur + r.eur, chf: a.chf + r.chf, pn: a.pn + r.p.length, pEur: a.pEur + r.pEur, pChf: a.pChf + r.pChf, on: a.on + r.o.length, oEur: a.oEur + r.oEur, oChf: a.oChf + r.oChf }),
+    { n:0, eur:0, chf:0, pn:0, pEur:0, pChf:0, on:0, oEur:0, oChf:0 });
+  const tr = rows.map(r => { const late = r.o.length && r.k < curK;
+    return `<tr class="mrow ${mSel === r.k ? 'sel' : ''} ${r.k === curK ? 'cur' : ''}" data-m="${r.k}">
+      <td class="mn">${MON[r.mon]} ${mJahr}</td>
+      <td><b>${eur(r.eur)}</b><small>≈ ${chfF(r.chf)}</small><small>${r.l.length} ${r.l.length === 1 ? "Rate" : "Raten"}</small></td>
+      <td class="ok">${r.p.length ? `${eur(r.pEur)}<small>≈ ${chfF(r.pChf)}</small><small>${r.p.length} ${r.p.length === 1 ? "Rate" : "Raten"}</small>` : '–'}</td>
+      <td class="op ${late ? 'late' : ''}">${r.o.length ? `${eur(r.oEur)}<small>≈ ${chfF(r.oChf)}</small><small>${r.o.length} ${r.o.length === 1 ? "Rate" : "Raten"}${late ? ' · überfällig' : ''}</small>` : '<span class="ok">✓ alles bezahlt</span>'}</td>
+      <td><span class="mbar"><div style="width:${r.l.length ? r.p.length / r.l.length * 100 : 0}%"></div></span></td></tr>`; }).join('');
+  let detail = '';
+  const r = rows.find(x => x.k === mSel);
+  if (r) detail = `<div class="mhead">${MON[r.mon]} ${mJahr} · noch zu bezahlen (${r.o.length}) · ${eur(r.oEur)}</div>${r.o.length ? byDay(r.o) : '<div class="nothing">Alles bezahlt</div>'}
+    <div class="mhead">${MON[r.mon]} ${mJahr} · bezahlt (${r.p.length}) · ${eur(r.pEur)}</div>${r.p.length ? byDay(r.p, 'done') : '<div class="nothing" style="color:var(--grey)">Noch nichts bezahlt</div>'}`;
+  return `<div class="mtools"><span>Jahr:</span>${jahre.map(j => `<button data-j="${j}" class="${j === mJahr ? 'on' : ''}">${j}</button>`).join('')}<span style="margin-left:12px">Zeile anklicken = Rechnungen des Monats anzeigen</span></div>
+    <div class="mwrap"><table class="mt"><thead><tr><th>Monat (Fälligkeit)</th><th>Total</th><th>Bezahlt</th><th>Noch zu bezahlen</th><th>Fortschritt</th></tr></thead>
+    <tbody>${tr}</tbody>
+    <tfoot><tr><td>Total ${mJahr}</td><td>${eur(T.eur)}<small>≈ ${chfF(T.chf)}</small><small>${T.n} Raten</small></td><td>${eur(T.pEur)}<small>≈ ${chfF(T.pChf)}</small><small>${T.pn} Raten</small></td><td>${eur(T.oEur)}<small>≈ ${chfF(T.oChf)}</small><small>${T.on} Raten</small></td><td></td></tr></tfoot></table></div>${detail}`;
 }
 
 const eff = f => f.faellig;
@@ -242,8 +298,8 @@ function render() {
       <div class="prog"><span>${n} von ${tot} erledigt</span><div class="pb"><div style="width:${tot ? n/tot*100 : 0}%"></div></div></div>
     </div>
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
-    <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button></div>
-    <section class="blk ${sel === 'jetzt' ? 'w0' : sel}">${sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
+    <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button><button data-s="monate" class="${sel === 'monate' ? 'on' : ''}">Monatsübersicht</button></div>
+    <section class="blk ${sel === 'monate' ? '' : sel === 'jetzt' ? 'w0' : sel}">${sel === 'monate' ? renderMonate() : sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
     <p class="note">${noDate ? noDate + ' offene Rate(n) ohne Zahlungstermin werden hier nicht angezeigt (Excel prüfen). ' : ''}Der Zahlungszweck ist Rechnungsnummer und Rate, so wie Megamo ihn in den Erinnerungen schreibt. Ein Klick auf den Zahlungszweck kopiert die Rechnungsnummer (ohne Rate) in die Zwischenablage, damit du sie in der Excel suchen kannst. Die Originalrechnung öffnet der Knopf «PDF öffnen». Alle Beträge in EUR, darunter der Betrag in Franken (EZB-Kurs vom Zahlungstag, bei offenen Raten der Planungskurs aus der Excel) und die Ersparnis gegenüber einem Einkauf in Franken (1:1). Die Franken-Werte sind Schätzwerte. Ein Haken schreibt «Bezahlt» und das Datum sofort in die Excel. Rechnungen mit «Ignorieren» in der Bemerkung werden nie angezeigt. Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
@@ -292,7 +348,7 @@ async function openPdf(f) {
 // ---------- Ereignisse ----------
 document.addEventListener('change', e => {
   if (e.target.matches('input[data-k]')) {
-    const f = ALL.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
+    const f = HIST.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
     if (e.target.checked) setStatus(f, 'bezahlt');
     else if (confirm(`${f.nr}-${f.rate} wieder auf «offen» setzen?`)) setStatus(f, 'offen');
     else { e.target.checked = true; }
@@ -313,7 +369,9 @@ async function copyText(t) {
 document.addEventListener('click', async e => {
   const cp = e.target.closest('[data-copy]'); if (cp) { copyText(cp.dataset.copy); return; }
   const s = e.target.closest('[data-s]'); if (s) { sel = s.dataset.s; render(); return; }
-  const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(ALL.find(x => String(x.row) === p.dataset.pdf)); return; }
+  const mj = e.target.closest('[data-j]'); if (mj) { mJahr = +mj.dataset.j; mSel = null; render(); return; }
+  const mm = e.target.closest('[data-m]'); if (mm) { mSel = mSel === mm.dataset.m ? null : mm.dataset.m; render(); return; }
+  const p = e.target.closest('[data-pdf]'); if (p) { e.preventDefault(); openPdf(HIST.find(x => String(x.row) === p.dataset.pdf)); return; }
   if (e.target.id === 'reload') refresh(true);
   if (e.target.id === 'li') pca.loginRedirect({ scopes: CFG.scopes });
   if (e.target.id === 'lo') pca.logoutRedirect({ account });
