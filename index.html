@@ -191,23 +191,27 @@ async function liesBis(rg, ok, versuche = 8, pauseMs = 1500) {
 let ALL = [], noDate = 0, busy = false, sel = 'jetzt', loadedAt = null;
 const skOn = () => !!document.getElementById('sk')?.checked;
 const demoRows = () => { const d = n => addDays(today, n), o = (l, nr, b, n, extra) => ({ row: 100+ALL_DEMO_N++, lieferant: l, nr, betrag: b, netto: d(n), status: 'offen', bezahltAm: null, mahnung: false, ablage: '01_Pendente_Rechnungen\\x.pdf', bemerkung: '', ...extra });
-  return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Belimport','2026/1 Rate 1/4',10419.73,19), o('AXA Stiftung Berufliche Vorsorge','Q4-2026',13516.8,50), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
+  return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-0',150,0), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Belimport','2026/1 Rate 1/4',10419.73,19), o('AXA Stiftung Berufliche Vorsorge','Q4-2026',13516.8,50), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
 let ALL_DEMO_N = 0;
 let GUT = [], gutFehler = ''; // offene Guthaben (Blatt Gutschriften, Status offen)
 const demoGut = () => [{ row: 9, lieferant: 'Scott', nr: 'G-5', datum: addDays(today, -8), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', status: 'offen', bezug: 'Gutschrift Retoure, aus Rechnung S-00', dz: false }, { row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, gesamt: 223.25, abgez: 0, abgezVon: '', bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }, { row: 4, lieferant: 'Merida', nr: 'G-12', datum: addDays(today, -5), betrag: 20, gesamt: 220, abgez: 200, abgezVon: 'M-0', status: 'teilverrechnet', bezug: 'Gutschrift Retoure, aus Rechnung M-00', dz: false }];
 // gleicher Lieferant: gleich (Gross/Klein egal) oder einer beginnt mit dem anderen (mind. 4 Zeichen), wie in der Rechnungsautomation
 const gleich = (a, b) => { const x = a.trim().toLowerCase(), y = b.trim().toLowerCase(); return x === y || (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x))); };
-// Guthaben auf die offenen Rechnungen des gleichen Lieferanten verteilen (früheste Fälligkeit zuerst): wie viel ist bei welcher Rechnung abzuziehen?
+// Welche Rechnung hat Franz für ein Guthaben gewählt? (merkt sich der Browser; ohne Wahl gilt der Vorschlag)
+const zk = g => g.row + '|' + g.nr;
+let ZIEL = {};
+try { ZIEL = JSON.parse(localStorage.getItem('rl_ziel') || '{}'); } catch (e) {}
+const zielSpeichern = () => { try { localStorage.setItem('rl_ziel', JSON.stringify(ZIEL)); } catch (e) {} };
+// Guthaben den offenen Rechnungen des gleichen Lieferanten zuordnen: wie viel ist bei welcher Rechnung abzuziehen?
+// 1. gewählte Rechnung, 2. Vorschlag = früheste Rechnung, die GRÖSSER ist als das Guthaben (kein Restguthaben, Rechnung wird nicht 0), 3. sonst früheste Fälligkeit zuerst
 function verteile() {
   ALL.forEach(f => { f.abzug = 0; });
-  GUT.forEach(g => { g.rest = g.betrag; g.offenN = 0; g.offenSumme = 0; g.auf = []; });
-  [...ALL.filter(f => !f.paid)].sort((a, b) => a.netto - b.netto).forEach(f => {
-    GUT.filter(g => gleich(g.lieferant, f.lieferant)).forEach(g => {
-      g.offenN++; g.offenSumme += f.betrag;
-      const nimm = Math.min(g.rest, f.betrag - f.abzug);
-      if (nimm > 0.004) { f.abzug += nimm; g.rest -= nimm; g.auf.push({ nr: f.nr, betrag: nimm }); }
-    });
-  });
+  const offenL = [...ALL.filter(f => !f.paid)].sort((a, b) => a.netto - b.netto);
+  GUT.forEach(g => { g.rest = g.betrag; g.auf = []; g.vorschlag = false; g.kand = offenL.filter(f => gleich(g.lieferant, f.lieferant)); g.offenN = g.kand.length; g.offenSumme = g.kand.reduce((a, f) => a + f.betrag, 0); });
+  const geben = (g, f) => { const nimm = Math.min(g.rest, f.betrag - f.abzug); if (nimm > 0.004) { f.abzug += nimm; g.rest -= nimm; g.auf.push({ nr: f.nr, betrag: nimm }); } };
+  GUT.forEach(g => { const z = ZIEL[zk(g)], f = z && g.kand.find(x => String(x.row) === String(z)); g.manuell = !!f; if (f) geben(g, f); });
+  GUT.filter(g => !g.manuell).forEach(g => { const f = g.kand.find(x => x.betrag - x.abzug > g.rest + 0.004); if (f) { g.vorschlag = true; geben(g, f); } });
+  GUT.forEach(g => g.kand.forEach(f => { if (g.rest > 0.004) geben(g, f); }));
 }
 
 function build(raw) {
@@ -360,7 +364,8 @@ function render() {
     : GUT.length ? `<section class="gut"><h2><span>Achtung: Guthaben bei der Zahlung abziehen</span><span>Total ${chf(gutTotal)}</span></h2>${GUT.map(g => `<div class="gi">
         <div><div class="gl">${esc(g.lieferant)} · ${g.dz ? 'Doppelzahlung' : 'Gutschrift'} ${esc(g.nr)}</div><div class="nr">${esc(g.bezug)}${g.datum ? ' · vom ' + dsFull(g.datum) : ''}</div>
           ${g.abgez > 0.004 ? `<div class="nr"><b>Restguthaben</b>: ${chf(g.gesamt)} minus schon abgezogen ${chf(g.abgez)}${g.abgezVon ? ' (Rechnung ' + esc(g.abgezVon) + ')' : ''}</div>` : ''}
-          <div class="nr">${g.auf.length ? 'Abzug bei: ' + g.auf.map(a => 'Rechnung ' + esc(a.nr) + ' (' + chf(a.betrag) + ')').join(', ') : 'Keine offene Rechnung dieses Lieferanten: bei der nächsten Rechnung abziehen.'}${g.rest > 0.004 && g.auf.length ? ' · noch offen: ' + chf(g.rest) : ''}</div></div>
+          <div class="nr">${g.auf.length ? 'Abzug bei: ' + g.auf.map(a => 'Rechnung ' + esc(a.nr) + ' (' + chf(a.betrag) + ')').join(', ') : 'Keine offene Rechnung dieses Lieferanten: bei der nächsten Rechnung abziehen.'}${g.rest > 0.004 && g.auf.length ? ' · noch offen: ' + chf(g.rest) : ''}${g.vorschlag ? ' <i>(Vorschlag: Rechnung grösser als das Guthaben)</i>' : ''}</div>
+          ${g.kand.length ? `<div class="nr">Abziehen bei: <select data-gsel="${g.row}" ${busy ? 'disabled' : ''}><option value="">Automatisch (Vorschlag)</option>${g.kand.map(f => `<option value="${f.row}" ${g.manuell && String(ZIEL[zk(g)]) === String(f.row) ? 'selected' : ''}>Rechnung ${esc(f.nr)} · fällig ${ds(f.netto)} · ${chf(f.betrag)}</option>`).join('')}</select></div>` : ''}</div>
         <div class="ga">− ${chf(g.betrag)}</div>
         <button class="btn gbtn" data-gv="${g.row}" title="Erst anklicken, wenn das Guthaben bei einer Zahlung wirklich abgezogen wurde">Verrechnet ✓</button></div>`).join('')}
       <div class="gh">Die Rechnungen dieses Lieferanten unten sind mit «Guthaben abziehen» markiert; der grosse Betrag ist der Betrag nach Abzug. «Verrechnet» erst anklicken, wenn der Abzug bezahlt wurde.</div></section>` : '';
@@ -372,7 +377,7 @@ function render() {
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button><button data-s="monate" class="${sel === 'monate' ? 'on' : ''}">Monatsübersicht</button></div>
     <section class="blk ${sel === 'monate' ? '' : sel === 'jetzt' ? 'w0' : sel}">${sel === 'monate' ? renderMonate() : sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Version 08.11. (Monatsübersicht) · Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Version 10.11. (Guthaben-Auswahl) · Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 // ---------- Haken setzen (schreibt in die Excel) ----------
@@ -393,7 +398,7 @@ async function setStatus(f, neu) {
     } else f.bezahltAm = neu === 'bezahlt' ? today : null;
     const hatteAbzug = f.abzug > 0.004;
     // Welche Guthaben waren bei dieser Rechnung zum Abziehen vorgesehen? (vor der Neuverteilung merken)
-    const kandidaten = (neu === 'bezahlt' && hatteAbzug) ? GUT.filter(g => gleich(g.lieferant, f.lieferant)) : [];
+    const kandidaten = (neu === 'bezahlt' && hatteAbzug) ? GUT.filter(g => g.auf.some(a => a.nr === f.nr)) : [];   // nur Guthaben, die bei dieser Rechnung abgezogen werden sollen
     f.paid = neu === 'bezahlt'; f.status = neu; verteile();
     toast(neu === 'bezahlt' ? `${f.lieferant}: als bezahlt gespeichert ✓` : `${f.lieferant}: wieder auf offen gesetzt`);
     if (kandidaten.length) {
@@ -473,6 +478,11 @@ async function openPdf(f) {
 
 // ---------- Ereignisse ----------
 document.addEventListener('change', e => {
+  if (e.target.matches('select[data-gsel]')) {
+    const g = GUT.find(x => String(x.row) === e.target.dataset.gsel); if (!g) return;
+    if (e.target.value) ZIEL[zk(g)] = e.target.value; else delete ZIEL[zk(g)];
+    zielSpeichern(); verteile(); render(); return;
+  }
   if (e.target.matches('input[data-k]')) {
     const f = HIST.find(x => String(x.row) === e.target.dataset.k); if (!f) return;
     if (e.target.checked) setStatus(f, 'bezahlt');
