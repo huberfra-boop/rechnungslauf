@@ -80,6 +80,8 @@
   .busy .gbtn { pointer-events:none; }
   @media (max-width:560px){ .gut .gi{grid-template-columns:1fr auto;} .gut .gbtn{grid-column:1 / -1; text-align:center;} }
   .chip.g { background:var(--pink); color:var(--white); font-weight:900; }
+  .abzbox { margin-top:6px; padding:6px 10px; border-left:3px solid var(--pink); background:rgba(245,66,111,.08); font-size:.8rem; line-height:1.5; }
+  .amt .pay { color:var(--pink); font-weight:700; }
   .mtools { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
   .mtools span { font-size:.8rem; color:var(--grey); margin-right:6px; }
   .mtools button { all:unset; cursor:pointer; padding:6px 14px; background:var(--light); font:900 .78rem Nunito,sans-serif; letter-spacing:.05em; }
@@ -194,7 +196,21 @@ const demoRows = () => { const d = n => addDays(today, n), o = (l, nr, b, n, ext
   return [o('Dachser','D-1',344.25,-3,{mahnung:true}), o('Scott','S-0',150,0), o('Scott','S-1',4176.55,1,{bemerkung:'Skonto 2 % (CHF 4093.02) bis ' + dsFull(d(3))}), o('Uvex','U-1',812.1,2), o('Merida','M-1',1520,6), o('Endura','E-1',233.9,9), o('Maloja','Ma-1',99.5,20), o('Belimport','2026/1 Rate 1/4',10419.73,19), o('AXA Stiftung Berufliche Vorsorge','Q4-2026',13516.8,50), o('Bergamont','B-1',2210,3,{status:'bezahlt',bezahltAm:d(0)})]; };
 let ALL_DEMO_N = 0;
 let GUT = [], gutFehler = ''; // offene Guthaben (Blatt Gutschriften, Status offen)
-const demoGut = () => [{ row: 9, lieferant: 'Scott', nr: 'G-5', datum: addDays(today, -8), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', status: 'offen', bezug: 'Gutschrift Retoure, aus Rechnung S-00', dz: false }, { row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, gesamt: 223.25, abgez: 0, abgezVon: '', bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }, { row: 4, lieferant: 'Merida', nr: 'G-12', datum: addDays(today, -5), betrag: 20, gesamt: 220, abgez: 200, abgezVon: 'M-0', status: 'teilverrechnet', bezug: 'Gutschrift Retoure, aus Rechnung M-00', dz: false }];
+let GUTALL = []; // alle Guthaben inkl. «verrechnet» (für die Anzeige «mit Abzug bezahlt» bei erledigten Rechnungen); dieselben Objekte wie in GUT
+// Spalte K «Abgezogen von Rechnung»: neu «Nr (CHF 100.00), Nr2 (CHF 50.00)», früher nur «Nr, Nr2»
+function parseAbz(g) {
+  const s = String(g.abgezVon || '').trim(); if (!s) return [];
+  const out = []; const re = /([^,()]+?)\s*\(CHF\s*([0-9.]+)\)/g; let m;
+  while ((m = re.exec(s))) out.push({ nr: m[1].trim(), betrag: parseFloat(m[2]) });
+  if (out.length) return out;
+  const teile = s.split(',').map(x => x.trim()).filter(Boolean);   // altes Format: ohne Beträge; bei nur einer Rechnung ist der Betrag = «Abgezogen CHF»
+  return teile.map(nr => ({ nr, betrag: teile.length === 1 ? g.abgez : null }));
+}
+// Abzüge, die bei einer (bezahlten) Rechnung gemacht wurden
+const abzuegeBei = f => GUTALL.flatMap(g => parseAbz(g).filter(a => a.nr === String(f.nr) && gleich(g.lieferant, f.lieferant)).map(a => ({ g, betrag: a.betrag })));
+const demoGut = () => [{ row: 9, lieferant: 'Scott', nr: 'G-5', datum: addDays(today, -8), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', status: 'offen', bezug: 'Gutschrift Retoure, aus Rechnung S-00', dz: false }, { row: 2, lieferant: 'Scott', nr: 'DZ-1', datum: addDays(today, -2), betrag: 223.25, gesamt: 223.25, abgez: 0, abgezVon: '', bezug: 'Doppelzahlung zu Rechnung S-0 (bezahlt 28.09.2026)', dz: true }, { row: 3, lieferant: 'Uvex', nr: 'G-77', datum: addDays(today, -9), betrag: 72.65, gesamt: 72.65, abgez: 0, abgezVon: '', bezug: 'Retoure GAR1011393, aus Rechnung U-0', dz: false }, { row: 4, lieferant: 'Merida', nr: 'G-12', datum: addDays(today, -5), betrag: 20, gesamt: 220, abgez: 200, abgezVon: 'M-0', status: 'teilverrechnet', bezug: 'Gutschrift Retoure, aus Rechnung M-00', dz: false },
+  { row: 20, lieferant: 'Bergamont', nr: 'G-3', datum: addDays(today, -20), betrag: 0, gesamt: 150, abgez: 150, abgezVon: 'B-1 (CHF 150.00)', status: 'verrechnet', bezug: 'Gutschrift Retoure', dz: false },
+  { row: 21, lieferant: 'Bergamont', nr: 'DZ-9', datum: addDays(today, -15), betrag: 0, gesamt: 60, abgez: 60, abgezVon: 'B-1 (CHF 60.00)', status: 'verrechnet', bezug: 'Doppelzahlung zu Rechnung B-0', dz: true }];
 // gleicher Lieferant: gleich (Gross/Klein egal) oder einer beginnt mit dem anderen (mind. 4 Zeichen), wie in der Rechnungsautomation
 const gleich = (a, b) => { const x = a.trim().toLowerCase(), y = b.trim().toLowerCase(); return x === y || (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x))); };
 // Welche Rechnung hat Franz für ein Guthaben gewählt? (merkt sich der Browser; ohne Wahl gilt der Vorschlag)
@@ -244,20 +260,23 @@ async function load() {
   ALL = DEMO ? HIST : HIST.filter(f => !f.paid || (f.bezahltAm && f.bezahltAm >= addDays(today, -CFG.erledigtTage)));
   loadedAt = new Date();
   // Guthaben lesen (ein Fehler hier darf die Rechnungen nicht blockieren, wird aber oben deutlich gemeldet)
-  GUT = []; gutFehler = '';
-  if (DEMO) GUT = demoGut();
+  GUT = []; GUTALL = []; gutFehler = '';
+  if (DEMO) { GUTALL = demoGut(); GUT = GUTALL.filter(g => g.status !== 'verrechnet'); }
   else {
     try {
       const g = await graph('GET', `${await gsheet()}/usedRange?$select=values,rowIndex`);
       g.values.forEach((v, i) => {
         const row = g.rowIndex + i + 1;
         const gst = String(v[5] ?? '').trim().toLowerCase();
-        if (row < 2 || !String(v[0] ?? '').trim() || (gst !== 'offen' && gst !== 'teilverrechnet')) return;
+        if (row < 2 || !String(v[0] ?? '').trim() || !['offen', 'teilverrechnet', 'verrechnet'].includes(gst)) return;
         // Spalte K = abgezogen von Rechnung, L = abgezogen CHF, M = Restguthaben CHF (Excel rechnet Betrag minus abgezogen). Fällt auf den Betrag zurück, falls M leer ist.
         const gesamt = Math.abs(Number(v[3]) || 0), abgez = Math.abs(Number(v[11]) || 0);
         const rest = (v[12] !== '' && v[12] != null && !isNaN(Number(v[12]))) ? Math.max(0, Number(v[12])) : Math.max(0, gesamt - abgez);
-        if (rest < 0.005) return;   // nichts mehr übrig: nicht mehr anzeigen
-        GUT.push({ row, lieferant: String(v[0]).trim(), nr: String(v[1] ?? ''), datum: serial2date(v[2]), betrag: rest, gesamt, abgez, abgezVon: String(v[10] ?? '').trim(), status: gst, bezug: String(v[4] ?? ''), dz: /^doppelzahlung/i.test(String(v[4] ?? '')) });
+        const go = { row, lieferant: String(v[0]).trim(), nr: String(v[1] ?? ''), datum: serial2date(v[2]), betrag: rest, gesamt, abgez, abgezVon: String(v[10] ?? '').trim(), status: gst, bezug: String(v[4] ?? ''), dz: /^doppelzahlung/i.test(String(v[4] ?? '')) };
+        if (go.abgezVon) GUTALL.push(go);   // für die Anzeige bei erledigten Rechnungen
+        if (gst === 'verrechnet' || rest < 0.005) return;   // nichts mehr übrig: nicht mehr als offenes Guthaben anzeigen
+        if (!go.abgezVon) GUTALL.push(go);
+        GUT.push(go);
       });
     } catch (e) { gutFehler = e.message; }
   }
@@ -324,12 +343,15 @@ function row(f, b) {
   const abz = (!f.paid && f.abzug > 0.004) ? f.abzug : 0;
   if (abz) chips.push(`<span class="chip g">⚠ Guthaben abziehen: ${chf(abz)}</span>`);
   if (f.paid && f.bezahltAm) chips.push(`<span class="chip n">bezahlt am ${dsFull(f.bezahltAm)}</span>`);
+  // Erledigte Rechnung mit Guthaben-Abzug: ursprünglicher Betrag, abgezogene Guthaben (Art, Nummer, Betrag) und effektiv bezahlter Betrag
+  const az = f.paid ? abzuegeBei(f) : [], azSum = az.reduce((a, x) => a + (x.betrag || 0), 0), azOk = az.length && az.every(x => x.betrag != null);
+  const azHtml = az.length ? `<div class="abzbox">${az.map(x => `<div>− ${x.g.dz ? 'Doppelzahlung' : 'Gutschrift'} ${esc(x.g.nr)}${x.betrag != null ? ': <b>' + chf(x.betrag) + '</b>' : ' (Betrag siehe Excel)'}</div>`).join('')}</div>` : '';
   const lock = f.paid && !f.undoOk;
   const link = f.pdfUrl ? `<a class="lf" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener" data-pdf="${f.row}">${esc(f.lieferant)}<span>PDF öffnen ↗</span></a>` : `<span class="lf">${esc(f.lieferant)}</span>`;
   return `<div class="row ${f.paid ? 'done' : ''}"><input type="checkbox" data-k="${f.row}" ${f.paid ? 'checked' : ''} ${lock ? 'disabled title="Schon abgelegt. Änderungen bitte in der Excel."' : ''} aria-label="${esc(f.lieferant)} als bezahlt markieren">
     <div class="dt ${f.paid ? 'done' : b}">${WD[d.getDay()]}<b>${ds(d)}</b></div>
-    <div>${link}<div class="nr">Rechnung ${esc(f.nr)}</div><div class="chips">${chips.join('')}</div></div>
-    <div class="amt">${(() => { const base = use ? f.skBetrag : f.betrag; return abz ? `<b>${chf(Math.max(0, base - abz))}</b><small>${chf(base)}</small>` : use ? `<b>${chf(f.skBetrag)}</b><small>${chf(f.betrag)}</small>` : `<b>${chf(f.betrag)}</b>`; })()}</div></div>`;
+    <div>${link}<div class="nr">Rechnung ${esc(f.nr)}</div><div class="chips">${chips.join('')}</div>${azHtml}</div>
+    <div class="amt">${az.length ? `<b>${azOk ? chf(Math.max(0, f.betrag - azSum)) : chf(f.betrag)}</b><small>ursprünglich ${chf(f.betrag)}</small>${azOk ? `<small class="pay">bezahlt nach Abzug</small>` : ''}` : (() => { const base = use ? f.skBetrag : f.betrag; return abz ? `<b>${chf(Math.max(0, base - abz))}</b><small>${chf(base)}</small>` : use ? `<b>${chf(f.skBetrag)}</b><small>${chf(f.betrag)}</small>` : `<b>${chf(f.betrag)}</b>`; })()}</div></div>`;
 }
 function byDay(list, tone) {
   if (!list.length) return '<div class="nothing">Nichts fällig</div>';
@@ -377,7 +399,7 @@ function render() {
     <div class="${busy ? 'busy' : ''}"><div class="tiles">${tiles}</div>
     <div class="tabs" style="margin-bottom:12px"><button data-s="jetzt" class="${sel === 'jetzt' ? 'on' : ''}">Zu zahlen: überfällig + 2 Wochen</button><button data-s="monate" class="${sel === 'monate' ? 'on' : ''}">Monatsübersicht</button></div>
     <section class="blk ${sel === 'monate' ? '' : sel === 'jetzt' ? 'w0' : sel}">${sel === 'monate' ? renderMonate() : sel === 'later' ? byKW(g.later) : sel === 'done' ? (g.done.length ? byDay(g.done, 'done') : '<div class="nothing">Noch nichts erledigt</div>') : byDay(g[sel])}</section></div>
-    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Version 10.11. (Guthaben-Auswahl) · Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
+    <p class="note">${noDate ? noDate + ' offene Rechnung(en) ohne Fälligkeitsdatum werden hier nicht angezeigt (Excel prüfen). ' : ''}Ein Haken schreibt «bezahlt» sofort in die Excel. Das Datum trägt die Excel selbst ein, die PDF wird von der Rechnungsautomation in den Ordner «Bezahlte Rechnungen» abgelegt. Version 12.11. (Abzug bei Erledigt) · Stand: ${loadedAt ? loadedAt.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'}) : '-'} Uhr.</p>`;
 }
 
 // ---------- Haken setzen (schreibt in die Excel) ----------
@@ -424,7 +446,7 @@ async function setStatus(f, neu) {
 // ---------- Abzug bei einer bezahlten Rechnung in der Excel eintragen (Blatt Gutschriften: K Rechnung, L abgezogen CHF, F Status) ----------
 async function abzugBuchen(g, nr, betrag) {
   const rd = v => Math.round(v * 100) / 100;
-  const neuAbz = rd((g.abgez || 0) + betrag), neuVon = g.abgezVon ? g.abgezVon + ', ' + nr : String(nr);
+  const neuAbz = rd((g.abgez || 0) + betrag), eintrag = `${nr} (CHF ${betrag.toFixed(2)})`, neuVon = g.abgezVon ? g.abgezVon + ', ' + eintrag : eintrag;   // Excel Spalte K: «Rechnung (CHF Betrag)», damit man später sieht, wie viel bei welcher Rechnung abgezogen wurde
   const rest = rd(g.gesamt - neuAbz), neuStatus = rest < 0.005 ? 'verrechnet' : 'teilverrechnet';
   if (!DEMO) {
     const rg = `${await gsheet()}/range(address='A${g.row}:M${g.row}')`;
